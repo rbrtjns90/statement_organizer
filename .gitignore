@@ -187,3 +187,6 @@ cython_debug/
 test_analyzer.py
 schedule_c_data.xlsx
 bank_statement_analyzer.py
+openai.txt
+*.pdf
+*.xlsx

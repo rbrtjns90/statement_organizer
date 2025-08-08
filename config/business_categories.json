@@ -1,15 +1,4 @@
 {
-  "Travel & Transportation": [
-    "airline",
-    "hotel",
-    "airbnb",
-    "uber *trip",
-    "lyft",
-    "taxi",
-    "rental car",
-    "love's",
-    "mobile purchase"
-  ],
   "Meals & Entertainment": [
     "restaurant",
     "cafe",
@@ -17,14 +6,7 @@
     "doordash",
     "grubhub",
     "ubereats",
-    "uber *eats",
-    "Love's",
-    "Pilot",
-    "TA",
-    "Petro",
-    "McDonalds",
-    "Taco",
-    "POPEYES"
+    "uber *eats"
   ],
   "Software & Subscriptions": [
     "github",
@@ -45,9 +27,7 @@
     "lawyer",
     "accountant",
     "consulting",
-    "legal",
-    "NAV TECH",
-    "ECREDABLE"
+    "legal"
   ],
   "Insurance": [
     "freedom life ins",
@@ -67,24 +47,34 @@
     "internet",
     "electricity",
     "water",
-    "gas",
-    "Verizon",
-    "Spectrum"
-  ],
-  "Rent": [
-    "rent",
-    "lease",
-    "coworking"
+    "gas"
   ],
   "Other Business Expenses": [],
-  "Truck Rental Space": [
-    "SAM 7 SONS TRUCKING LLC"
+  "Advertising": [],
+  "Depletion": [],
+  "Depreciation": [],
+  "Employee Benefit Programs": [],
+  "Interest Mortgage": [],
+  "Pension and profit-sharing plans": [],
+  "Rent or Lease Vehicles, Mach": [],
+  "Rent or Lease Other Business": [],
+  "Repairs or Maintenance": [
+    "staples",
+    "office depot",
+    "amazon",
+    "office supplies"
   ],
-  "Repairs/Parts": [
-    "MHC",
-    "Peterbilt",
-    "Truckpro",
-    "Fleetpride",
-    "Freightliner"
-  ]
+  "Supplies (not incl Part III)": [
+    "airline",
+    "hotel",
+    "airbnb",
+    "uber *trip",
+    "lyft",
+    "taxi",
+    "rental car",
+    "love's",
+    "mobile purchase"
+  ],
+  "Taxes or licenses": [],
+  "Energy efficient commercial bldgs": []
 }

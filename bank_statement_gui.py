@@ -538,7 +538,7 @@ class BankStatementGUI(QMainWindow):
             # Save the updated categories
             if not self.categories_path:
                 # If no categories file is selected, create one
-                self.categories_path = "business_categories.json"
+                self.categories_path = "config/business_categories.json"
                 self.categories_path_label.setText(os.path.basename(self.categories_path))
             
             try:

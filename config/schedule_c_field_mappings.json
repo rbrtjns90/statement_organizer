@@ -1,0 +1,124 @@
+{
+  "schedule_c_mappings": {
+    "Total expenses": {
+      "line": "28",
+      "field_pattern": "f1_41",
+      "description": "Schedule C Line 28"
+    },
+    "Other expenses": {
+      "line": "27a",
+      "field_pattern": "f1_39",
+      "description": "Schedule C Line 27a"
+    },
+    "Utilities": {
+      "line": "25",
+      "field_pattern": "f1_37",
+      "description": "Schedule C Line 25"
+    },
+    "Meals": {
+      "line": "24b",
+      "field_pattern": "f1_36",
+      "description": "Schedule C Line 24b"
+    },
+    "Travel": {
+      "line": "24a",
+      "field_pattern": "f1_35",
+      "description": "Schedule C Line 24a"
+    },
+    "Office expenses": {
+      "line": "18",
+      "field_pattern": "f1_28",
+      "description": "Schedule C Line 18"
+    },
+    "Legal and professional services": {
+      "line": "17",
+      "field_pattern": "f1_27",
+      "description": "Schedule C Line 17"
+    },
+    "Interest (other)": {
+      "line": "16b",
+      "field_pattern": "f1_24",
+      "description": "Schedule C Line 16b"
+    },
+    "Insurance": {
+      "line": "15",
+      "field_pattern": "f1_24",
+      "description": "Schedule C Line 15"
+    },
+    "Contract labor": {
+      "line": "11",
+      "field_pattern": "f1_20",
+      "description": "Schedule C Line 11"
+    },
+    "Car and truck expenses": {
+      "line": "9",
+      "field_pattern": "f1_18",
+      "description": "Schedule C Line 9"
+    },
+    "Advertising": {
+      "line": "unknown",
+      "field_pattern": "f1_17",
+      "description": "Schedule C Line unknown"
+    },
+    "Depletion": {
+      "line": "unknown",
+      "field_pattern": "f1_21",
+      "description": "Schedule C Line unknown"
+    },
+    "Depreciation": {
+      "line": "unknown",
+      "field_pattern": "f1_22",
+      "description": "Schedule C Line unknown"
+    },
+    "Employee Benefit Programs": {
+      "line": "unknown",
+      "field_pattern": "f1_23",
+      "description": "Schedule C Line unknown"
+    },
+    "Interest Mortgage": {
+      "line": "unknown",
+      "field_pattern": "f1_25",
+      "description": "Schedule C Line unknown"
+    },
+    "Pension and profit-sharing plans": {
+      "line": "unknown",
+      "field_pattern": "f1_29",
+      "description": "Schedule C Line unknown"
+    },
+    "Rent or Lease Vehicles, Mach": {
+      "line": "unknown",
+      "field_pattern": "f1_30",
+      "description": "Schedule C Line unknown"
+    },
+    "Rent or Lease Other Business": {
+      "line": "unknown",
+      "field_pattern": "f1_31",
+      "description": "Schedule C Line unknown"
+    },
+    "Repairs or Maintenance": {
+      "line": "unknown",
+      "field_pattern": "f1_32",
+      "description": "Schedule C Line unknown"
+    },
+    "Supplies (not incl Part III)": {
+      "line": "unknown",
+      "field_pattern": "f1_33",
+      "description": "Schedule C Line unknown"
+    },
+    "Taxes or licenses": {
+      "line": "unknown",
+      "field_pattern": "f1_34",
+      "description": "Schedule C Line unknown"
+    },
+    "Meals & Entertainment": {
+      "line": "unknown",
+      "field_pattern": "f1_36",
+      "description": "Schedule C Line unknown"
+    },
+    "Energy efficient commercial bldgs": {
+      "line": "unknown",
+      "field_pattern": "f1_40",
+      "description": "Schedule C Line unknown"
+    }
+  }
+}
