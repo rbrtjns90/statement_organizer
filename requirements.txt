@@ -1,0 +1,5 @@
+pdfplumber>=0.9.0
+pandas
+openpyxl
+python-dateutil>=2.8.0
+PyQt6

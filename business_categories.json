@@ -1,0 +1,90 @@
+{
+  "Travel & Transportation": [
+    "airline",
+    "hotel",
+    "airbnb",
+    "uber *trip",
+    "lyft",
+    "taxi",
+    "rental car",
+    "love's",
+    "mobile purchase"
+  ],
+  "Meals & Entertainment": [
+    "restaurant",
+    "cafe",
+    "coffee",
+    "doordash",
+    "grubhub",
+    "ubereats",
+    "uber *eats",
+    "Love's",
+    "Pilot",
+    "TA",
+    "Petro",
+    "McDonalds",
+    "Taco",
+    "POPEYES"
+  ],
+  "Software & Subscriptions": [
+    "github",
+    "aws",
+    "google cloud",
+    "microsoft",
+    "zoom",
+    "slack",
+    "adobe"
+  ],
+  "Marketing": [
+    "facebook ads",
+    "google ads",
+    "marketing",
+    "advertising"
+  ],
+  "Professional Services": [
+    "lawyer",
+    "accountant",
+    "consulting",
+    "legal",
+    "NAV TECH",
+    "ECREDABLE"
+  ],
+  "Insurance": [
+    "freedom life ins",
+    "ins. prem",
+    "ngic",
+    "delta dental",
+    "insurance"
+  ],
+  "Banking & Credit": [
+    "citi autopay",
+    "payment",
+    "transfer",
+    "banking"
+  ],
+  "Utilities": [
+    "phone",
+    "internet",
+    "electricity",
+    "water",
+    "gas",
+    "Verizon",
+    "Spectrum"
+  ],
+  "Rent": [
+    "rent",
+    "lease",
+    "coworking"
+  ],
+  "Other Business Expenses": [],
+  "Truck Rental Space": [
+    "SAM 7 SONS TRUCKING LLC"
+  ],
+  "Repairs/Parts": [
+    "MHC",
+    "Peterbilt",
+    "Truckpro",
+    "Fleetpride",
+    "Freightliner"
+  ]
+}
