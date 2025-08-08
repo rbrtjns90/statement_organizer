@@ -14,7 +14,7 @@ from PyQt6.QtWidgets import (
     QPushButton, QLabel, QFileDialog, QComboBox, QTableWidget, 
     QTableWidgetItem, QTabWidget, QMessageBox, QProgressBar,
     QGroupBox, QGridLayout, QLineEdit, QTextEdit, QSplitter,
-    QHeaderView, QDialog, QDialogButtonBox, QStyledItemDelegate
+    QHeaderView, QDialog, QDialogButtonBox, QStyledItemDelegate, QCheckBox
 )
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, QSize
 from PyQt6.QtGui import QFont, QIcon, QColor
@@ -28,23 +28,40 @@ class WorkerThread(QThread):
     update_progress = pyqtSignal(int)
     finished = pyqtSignal(list)
     error = pyqtSignal(str)
+    status_update = pyqtSignal(str)
     
-    def __init__(self, pdf_paths, categories_path=None):
+    def __init__(self, pdf_paths, categories_path=None, use_ai=False):
         super().__init__()
         self.pdf_paths = pdf_paths if isinstance(pdf_paths, list) else [pdf_paths]
         self.categories_path = categories_path
+        self.use_ai = use_ai
         self.analyzer = None
         
     def run(self):
         try:
+            self.status_update.emit("🚀 Initializing analyzer...")
             self.analyzer = BankStatementAnalyzer()
+            
+            # Set up status callback for AI messages
+            self.analyzer.set_status_callback(self.status_update.emit)
             
             # Load custom categories if provided
             if self.categories_path:
+                self.status_update.emit(f"📂 Loading categories from {os.path.basename(self.categories_path)}...")
                 self.analyzer.load_custom_categories(self.categories_path)
+            
+            # Enable AI categorization if requested and available
+            if self.use_ai:
+                self.status_update.emit("🤖 Enabling AI categorization...")
+                ai_enabled = self.analyzer.enable_ai_categorization()
+                if ai_enabled:
+                    self.status_update.emit("✅ AI categorization ready")
+                else:
+                    self.status_update.emit("⚠️ AI categorization unavailable, using pattern matching")
             
             # Extract transactions from PDFs
             self.update_progress.emit(30)
+            self.status_update.emit(f"📄 Extracting transactions from {len(self.pdf_paths)} PDF(s)...")
             if len(self.pdf_paths) == 1:
                 self.analyzer.extract_from_pdf(self.pdf_paths[0])
             else:
@@ -52,10 +69,12 @@ class WorkerThread(QThread):
             
             # Categorize transactions
             self.update_progress.emit(70)
+            self.status_update.emit(f"🏷️ Categorizing {len(self.analyzer.transactions)} transactions...")
             self.analyzer.categorize_transactions()
             
             # Return the transactions
             self.update_progress.emit(100)
+            self.status_update.emit("✅ Processing complete!")
             self.finished.emit(self.analyzer.transactions)
             
         except Exception as e:
@@ -311,16 +330,25 @@ class BankStatementGUI(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Bank Statement Analyzer")
-        self.setMinimumSize(1000, 700)
+        self.setGeometry(100, 100, 1200, 800)
         
-        self.transactions = []
-        self.categories_path = None
+        # Data storage
         self.pdf_paths = []
-        self.output_path = None
-        self.analyzer = None
+        self.categories_path = None
+        self.output_path = "categorized_transactions.xlsx"
+        self.transactions = []
+        self.current_analyzer = None
         self.transaction_indices = {}  # Map to track transaction indices in the table
         
         self.setup_ui()
+    
+    def _check_ai_available(self):
+        """Check if AI categorization is available."""
+        try:
+            import openai
+            return os.path.exists("openai.txt")
+        except ImportError:
+            return False
     
     def setup_ui(self):
         """Set up the user interface."""
@@ -365,13 +393,21 @@ class BankStatementGUI(QMainWindow):
         self.edit_categories_btn.clicked.connect(self.edit_categories)
         file_layout.addWidget(self.edit_categories_btn, 1, 3)
         
+        # AI categorization checkbox
+        self.ai_checkbox = QCheckBox("Use AI Categorization")
+        self.ai_checkbox.setToolTip("Enable AI-powered transaction categorization (requires openai.txt file)")
+        self.ai_checkbox.setChecked(self._check_ai_available())
+        file_layout.addWidget(self.ai_checkbox, 2, 0, 1, 2)
+        
         # Output file selection
-        file_layout.addWidget(QLabel("Output Excel File:"), 2, 0)
-        self.output_path_label = QLabel("categorized_transactions.xlsx")
-        file_layout.addWidget(self.output_path_label, 2, 1)
+        file_layout.addWidget(QLabel("Output Excel File:"), 3, 0)
+        self.output_filename_input = QLineEdit("categorized_transactions.xlsx")
+        self.output_filename_input.setPlaceholderText("Enter filename (e.g., my_transactions.xlsx)")
+        self.output_filename_input.textChanged.connect(self.update_output_path)
+        file_layout.addWidget(self.output_filename_input, 3, 1)
         self.browse_output_btn = QPushButton("Browse...")
         self.browse_output_btn.clicked.connect(self.browse_output)
-        file_layout.addWidget(self.browse_output_btn, 2, 2)
+        file_layout.addWidget(self.browse_output_btn, 3, 2)
         
         file_group.setLayout(file_layout)
         main_layout.addWidget(file_group)
@@ -440,6 +476,19 @@ class BankStatementGUI(QMainWindow):
         
         main_layout.addWidget(self.tabs)
         
+        # Status display area
+        status_group = QGroupBox("Processing Status")
+        status_layout = QVBoxLayout()
+        
+        self.status_text = QTextEdit()
+        self.status_text.setMaximumHeight(100)
+        self.status_text.setReadOnly(True)
+        self.status_text.setPlaceholderText("Processing status will appear here...")
+        status_layout.addWidget(self.status_text)
+        
+        status_group.setLayout(status_layout)
+        main_layout.addWidget(status_group)
+        
         main_widget.setLayout(main_layout)
         self.setCentralWidget(main_widget)
     
@@ -473,7 +522,7 @@ class BankStatementGUI(QMainWindow):
             
             # Auto-generate output path
             self.output_path = "yearly_transactions.xlsx"
-            self.output_path_label.setText(self.output_path)
+            self.output_filename_input.setText(self.output_path)
     
     def select_batch_folder(self):
         """Open a folder dialog to select a folder containing PDF files."""
@@ -491,7 +540,7 @@ class BankStatementGUI(QMainWindow):
                 
                 # Auto-generate output path
                 self.output_path = f"{os.path.basename(folder_path)}_transactions.xlsx"
-                self.output_path_label.setText(self.output_path)
+                self.output_filename_input.setText(self.output_path)
             else:
                 QMessageBox.warning(
                     self, 
@@ -510,14 +559,25 @@ class BankStatementGUI(QMainWindow):
     
     def browse_output(self):
         """Open a file dialog to select an output Excel file."""
+        current_filename = self.output_filename_input.text()
         file_path, _ = QFileDialog.getSaveFileName(
-            self, "Save Excel File", "", "Excel Files (*.xlsx)"
+            self, "Save Excel File", current_filename, "Excel Files (*.xlsx)"
         )
         if file_path:
             if not file_path.endswith('.xlsx'):
                 file_path += '.xlsx'
             self.output_path = file_path
-            self.output_path_label.setText(os.path.basename(file_path))
+            self.output_filename_input.setText(os.path.basename(file_path))
+    
+    def update_output_path(self):
+        """Update the output path when the filename changes."""
+        filename = self.output_filename_input.text().strip()
+        if filename:
+            if not filename.endswith('.xlsx'):
+                filename += '.xlsx'
+            self.output_path = filename
+        else:
+            self.output_path = "categorized_transactions.xlsx"
     
     def edit_categories(self):
         """Open the category editor dialog."""
@@ -566,16 +626,29 @@ class BankStatementGUI(QMainWindow):
         self.process_btn.setEnabled(False)
         self.progress_bar.setValue(0)
         
+        # Clear status display
+        self.status_text.clear()
+        
         # Create and start the worker thread
-        self.worker = WorkerThread(self.pdf_paths, self.categories_path)
+        use_ai = self.ai_checkbox.isChecked()
+        self.worker = WorkerThread(self.pdf_paths, self.categories_path, use_ai)
         self.worker.update_progress.connect(self.update_progress)
         self.worker.finished.connect(self.display_results)
         self.worker.error.connect(self.show_error)
+        self.worker.status_update.connect(self.update_status)
         self.worker.start()
     
     def update_progress(self, value):
         """Update the progress bar."""
         self.progress_bar.setValue(value)
+    
+    def update_status(self, message):
+        """Update the status display with a new message."""
+        self.status_text.append(message)
+        # Auto-scroll to bottom
+        cursor = self.status_text.textCursor()
+        cursor.movePosition(cursor.MoveOperation.End)
+        self.status_text.setTextCursor(cursor)
     
     def show_error(self, error_msg):
         """Display an error message."""

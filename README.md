@@ -23,31 +23,64 @@ A comprehensive Python application that extracts transactions from bank statemen
 - [Advanced Features](#advanced-features)
 - [Troubleshooting](#troubleshooting)
 
-## 🛠 Installation
+## 🛠️ Installation
 
-### Prerequisites
+### Automated Installation (Recommended)
 
-- Python 3.12+
-- Virtual environment (recommended)
+The easiest way to install Statement Organizer is using the automated installer:
 
-### Setup
-
-1. **Clone the repository**:
+1. **Download the project**:
    ```bash
    git clone <repository-url>
    cd statement_organizer
    ```
 
-2. **Create and activate virtual environment**:
+2. **Run the installer**:
    ```bash
-   python3 -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
+   python3 install.py
    ```
 
-3. **Install dependencies**:
+The installer will:
+- ✅ Detect your operating system (Windows, macOS, Linux, BSD)
+- ✅ Check for Python 3.12+ (download if needed)
+- ✅ Install all required dependencies automatically
+- ✅ Create executable scripts for easy application launching
+- ✅ Set up the config directory structure
+
+### Manual Installation
+
+If you prefer manual installation:
+
+1. **Prerequisites**:
+   - Python 3.12+
+   - Virtual environment (recommended)
+
+2. **Setup**:
    ```bash
+   git clone <repository-url>
+   cd statement_organizer
+   python3 -m venv venv
+   source venv/bin/activate  # On Windows: venv\Scripts\activate
    pip install -r requirements.txt
    ```
+
+### Running Applications
+
+After installation, use the generated scripts:
+
+**Windows:**
+```cmd
+bank_statement_gui.bat          # Main GUI application
+pdf_field_mapper.bat            # PDF field mapping tool
+final_schedule_c_filler.bat     # Schedule C PDF processor
+```
+
+**Unix (Linux/macOS/BSD):**
+```bash
+./bank_statement_gui.sh         # Main GUI application
+./pdf_field_mapper.sh           # PDF field mapping tool
+./final_schedule_c_filler.sh    # Schedule C PDF processor
+```
 
 
 
@@ -55,9 +88,14 @@ A comprehensive Python application that extracts transactions from bank statemen
 
 ### Method 1: GUI Interface (Recommended)
 
+**Windows:**
+```cmd
+bank_statement_gui.bat
+```
+
+**Unix (Linux/macOS/BSD):**
 ```bash
-source venv/bin/activate
-python bank_statement_gui.py
+./bank_statement_gui.sh
 ```
 
 1. Click "Add PDFs" to select your bank statement files
@@ -447,7 +485,7 @@ statement_organizer/
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+This project is licensed under the GNU GPL3 License - see the LICENSE file for details.
 
 ## 🆘 Support
 
