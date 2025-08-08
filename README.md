@@ -136,6 +136,35 @@ PyQt6-based graphical interface for easy interaction.
 - Interactive transaction review
 - Category editing and management
 - Export capabilities
+- **AI-Powered Categorization** (optional)
+
+#### AI Categorization Checkbox
+
+The GUI includes an intelligent **"Use AI Categorization"** checkbox that enhances transaction categorization accuracy:
+
+**🤖 How It Works:**
+- **Auto-Detection**: Checkbox automatically enables if `openai.txt` file exists and OpenAI package is installed
+- **Smart Processing**: Uses GPT-3.5-turbo to categorize ambiguous transactions
+- **Fallback System**: If AI fails, automatically falls back to pattern matching
+- **Real-Time Feedback**: Shows AI categorization progress in the status display area
+
+**📋 Categorization Priority:**
+1. **Learned Categories** (from previous manual corrections)
+2. **AI Categorization** (if enabled and available)
+3. **Pattern Matching** (keyword-based)
+4. **Default**: "Other Business Expenses"
+
+**⚙️ Setup Requirements:**
+- Install OpenAI package: `pip install openai`
+- Create `openai.txt` file with your API key
+- Checkbox will auto-enable when requirements are met
+
+**💡 Benefits:**
+- **Higher Accuracy**: AI understands context better than simple keyword matching
+- **Learns Context**: Considers transaction amounts, descriptions, and business categories
+- **Cost Effective**: Uses GPT-3.5-turbo for affordable processing
+- **Transparent**: Status area shows which transactions are AI-categorized
+- **Optional**: Can be disabled to use only pattern matching
 
 ### 3. Schedule C Processor (`schedule_c_processor.py`)
 
