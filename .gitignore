@@ -192,3 +192,4 @@ bank_statement_analyzer.py
 openai.txt
 *.pdf
 *.xlsx
+statistics.txt

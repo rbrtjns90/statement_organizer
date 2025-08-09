@@ -719,6 +719,122 @@ To enhance Generic Parser accuracy:
 3. **Update filtering keywords**: Enhance `summary_keywords` list
 4. **Refine regex patterns**: Improve date and money detection patterns
 
+### Comprehensive Parser Efficacy Testing
+
+The `test_all_parsers.py` script provides comprehensive testing of all parsers against your entire PDF collection to evaluate system-wide performance and identify areas for improvement.
+
+#### Purpose
+- **System-wide Evaluation**: Test all parsers against all PDFs in the Statements directory
+- **Performance Metrics**: Generate detailed statistics on parser success rates and transaction extraction
+- **Comparative Analysis**: Compare performance between different parsers on the same files
+- **Quality Assurance**: Identify failing files and parser detection issues
+
+#### Running the Comprehensive Test
+
+```bash
+# Activate virtual environment
+source venv_new/bin/activate
+
+# Run comprehensive parser testing
+python test_all_parsers.py
+```
+
+#### Features
+
+**Comprehensive Testing:**
+- Tests all PDFs in the Statements directory automatically
+- Evaluates both automatic parser detection and individual parser performance
+- Measures processing time and success rates
+- Identifies files that fail to parse
+
+**Detailed Analysis:**
+- **Parser Detection Results**: Shows which parser was automatically selected for each file
+- **Individual Parser Performance**: Tests each parser against all files to show capability
+- **Success Rate Metrics**: Calculates success percentages and transaction counts
+- **Performance Statistics**: Processing time analysis and optimization insights
+
+#### Sample Output
+
+**Console Progress:**
+```
+Comprehensive Parser Efficacy Test
+==================================================
+Found 180 PDF files to test
+
+Progress: 95/180 (52.8%)
+Testing: eStmt_2024-05-31.pdf
+  Detected parser: Bank of America
+  Detected parser result: 45 transactions
+  Navy Federal: ✗ (0 transactions)
+  Capital One: ✗ (0 transactions)
+  Citibank: ✗ (0 transactions)
+  Chase: ✗ (0 transactions)
+  Bank of America: ✓ (45 transactions)
+  Generic: ✓ (12 transactions)
+```
+
+**Final Results:**
+```
+============================================================
+TEST COMPLETED
+============================================================
+Total files tested: 180
+Total testing time: 32.38 seconds
+Detailed statistics saved to: statistics.txt
+
+Quick Summary:
+  Successfully parsed: 172/180 (95.6%)
+  Average processing time: 0.18s per file
+```
+
+#### Generated Reports
+
+**statistics.txt** - Comprehensive analysis including:
+- **Overall Statistics**: Success rates and failure analysis
+- **Parser Detection Results**: Which parsers were selected and their performance
+- **Individual Parser Performance**: Detailed breakdown of each parser's capabilities
+- **Failed Files Analysis**: Specific files that couldn't be parsed and why
+- **Top Performing Files**: Best extraction results with transaction counts
+- **Performance Metrics**: Processing time statistics
+- **Recommendations**: Actionable insights for system improvement
+
+#### Interpreting Results
+
+**Success Rate Analysis:**
+- **95%+ success rate**: Excellent system performance
+- **80-95% success rate**: Good performance with room for optimization
+- **<80% success rate**: May indicate parser detection or format compatibility issues
+
+**Parser Performance Indicators:**
+- **High transaction counts**: Indicates effective pattern recognition
+- **100% success on detected files**: Shows parser accuracy when properly matched
+- **Low detection rates**: May indicate overly restrictive `can_parse()` methods
+
+#### Using Results for Optimization
+
+**Identify Improvement Areas:**
+1. **Failed Files**: Use `regex_builder.py` to analyze unsupported formats
+2. **Low Detection Rates**: Adjust parser `can_parse()` methods for better coverage
+3. **Performance Issues**: Optimize slow parsers or add more specific patterns
+4. **Generic Parser Tuning**: Use results to improve fallback parser accuracy
+
+**System Monitoring:**
+- Run periodically to ensure consistent performance
+- Compare results after parser updates or new bank statement formats
+- Track improvements in success rates over time
+
+#### Best Practices
+
+**Regular Testing:**
+- Run after adding new parsers or modifying existing ones
+- Test with new statement formats before production use
+- Monitor performance after system updates
+
+**Result Analysis:**
+- Focus on files with zero transactions - may indicate parsing issues
+- Compare individual parser results with detection results to identify mismatches
+- Use performance metrics to optimize processing speed
+
 ## 🐛 Troubleshooting
 
 ### Common Issues
