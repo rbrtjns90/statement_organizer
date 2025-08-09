@@ -338,7 +338,7 @@ class BankStatementGUI(QMainWindow):
         
         # Data storage
         self.pdf_paths = []
-        self.categories_path = None
+        self.categories_path = "config/business_categories.json"
         self.output_path = "categorized_transactions.xlsx"
         self.transactions = []
         self.current_analyzer = None
@@ -386,7 +386,7 @@ class BankStatementGUI(QMainWindow):
         
         # Categories file selection
         file_layout.addWidget(QLabel("Categories File:"), 1, 0)
-        self.categories_path_label = QLabel("Using default categories")
+        self.categories_path_label = QLabel("config/business_categories.json")
         file_layout.addWidget(self.categories_path_label, 1, 1)
         self.browse_categories_btn = QPushButton("Browse...")
         self.browse_categories_btn.clicked.connect(self.browse_categories)
