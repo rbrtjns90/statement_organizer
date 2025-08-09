@@ -32,8 +32,6 @@ class ChaseParser(BankStatementParser):
             "Chase", "CHASE",
             "TRANSACTIONS THIS CYCLE",  # Common Chase statement phrase
             "CARD ENDING IN",           # Chase card identifier
-            "ROBERT JONES",             # User's name (if this appears with transaction format)
-        ]
         
         text_upper = text.upper()
         
