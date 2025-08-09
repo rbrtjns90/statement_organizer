@@ -537,6 +537,90 @@ Requires additional machine learning packages:
 pip install scikit-learn numpy pandas
 ```
 
+### Regex Builder Tool - Pattern Discovery
+
+The `regex_builder.py` is a standalone analysis tool for discovering transaction patterns in bank statements that aren't picked up by existing parsers. It uses the same K-means clustering approach as the Generic Parser but provides detailed analysis and visual output.
+
+#### Purpose
+- **Pattern Discovery**: Analyze unsupported bank statement formats to understand their structure
+- **Regex Generation**: Automatically generate regex patterns for new bank statement types
+- **Visual Analysis**: Create visual representations of PDF layout and detected patterns
+- **Development Aid**: Help developers create new bank-specific parsers
+
+#### Usage
+
+**Basic Analysis:**
+```bash
+# Activate virtual environment with ML dependencies
+source venv_new/bin/activate
+
+# Analyze a single PDF statement
+python regex_builder.py path/to/statement.pdf
+```
+
+**Visual Analysis with --draw flag:**
+```bash
+# Generate visual analysis images (requires Pillow)
+python regex_builder.py path/to/statement.pdf --draw
+```
+
+#### Features
+
+**Automatic Pattern Detection:**
+- K-means clustering of PDF lines by layout features
+- Automatic identification of transaction-like content
+- Smart filtering of headers, summaries, and non-transaction content
+- Generation of flexible regex patterns without hardcoded literals
+
+**Visual Analysis (--draw flag):**
+- **Page Layout Visualization**: Shows PDF structure with detected lines
+- **Cluster Analysis**: Color-coded visualization of different line clusters
+- **Transaction Highlighting**: Visual identification of detected transaction patterns
+- **Pattern Guides**: Visual guides showing regex pattern matching areas
+
+#### Output
+
+**Console Output:**
+```
+Processing PDF with 4 pages...
+--- Page 1 ---
+Extracted 66 lines from page 1
+Clustering produced 4 clusters
+Chosen cluster for transactions: 1 (score: 102.61)
+Found 12 transaction-like lines
+Generated regex pattern: ^\s*(?:\d{1,2}[/-]\d{1,2}...)
+Matched 12 out of 12 transaction lines
+```
+
+**Generated Files:**
+- `transactions_extracted.csv`: Extracted transaction data
+- `page_N_analysis.png`: Visual analysis images (with --draw)
+- Console output with learned regex patterns
+
+#### When to Use
+
+**Use regex_builder.py when:**
+- Bank statements aren't supported by existing parsers
+- Generic Parser fails to extract transactions properly
+- You need to understand the structure of a new statement format
+- Developing a new bank-specific parser
+- Debugging transaction extraction issues
+
+**Example Workflow:**
+1. **Run basic analysis** to see if transactions are detected
+2. **Use --draw flag** to visualize the PDF structure and clustering
+3. **Examine generated regex patterns** for new parser development
+4. **Review extracted CSV** to validate transaction accuracy
+5. **Iterate and refine** patterns based on results
+
+#### Integration with Generic Parser
+
+The regex_builder.py tool serves as the foundation for the Generic Parser:
+- Same K-means clustering algorithm
+- Same pattern detection logic
+- Provides detailed analysis that the Generic Parser uses automatically
+- Useful for debugging when Generic Parser performance is suboptimal
+
 ### Custom Transaction Patterns
 
 Extend transaction recognition by modifying `extract_transactions()` in `bank_statement_analyzer.py`:
@@ -712,10 +796,6 @@ statement_organizer/
 │   ├── chase.py                  # Chase parser
 │   ├── bank_of_america.py        # Bank of America parser
 │   └── generic_regex.py          # ML-powered generic parser
-├── K_cluster_test/               # Machine learning parser development
-│   ├── regex_builder.py          # Original K-means clustering implementation
-│   ├── requirements.txt          # ML-specific dependencies
-│   └── *.pdf                     # Test PDF files
 ├── bank_statement_analyzer.py     # Core transaction extraction
 ├── bank_statement_gui.py          # Main GUI interface
 ├── final_schedule_c_filler.py     # Main PDF form filler
