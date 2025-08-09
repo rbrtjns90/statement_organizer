@@ -1,16 +1,35 @@
 # Bank Statement Analyzer & Schedule C Generator
 
-A comprehensive Python application that extracts transactions from bank statement PDFs, categorizes business expenses, and generates filled IRS Schedule C tax forms automatically. Currently only works with BofA but extending it.
+A comprehensive Python application that extracts transactions from bank statement PDFs, categorizes business expenses, and generates filled IRS Schedule C tax forms automatically. Features a modular parser system supporting multiple major banks with intelligent transaction detection and AI-powered categorization.
 
 ## 🚀 Features
 
+### 🏦 Multi-Bank Support
+- **Navy Federal Credit Union**: Both checking/savings (MM-DD format) and credit card (MM/DD/YY format) statements
+- **Capital One**: Credit card statements with transaction/post date format
+- **Citibank**: Complex multi-line transaction formats with orphaned amount matching
+- **Chase**: Standard and no-date transaction patterns with PayPal support
+- **Bank of America**: Traditional bank statement formats
+- **Automatic Detection**: Intelligent bank identification from PDF content
+
+### 💡 Smart Processing
 - **PDF Transaction Extraction**: Automatically extract transactions from bank statement PDFs
-- **Smart Categorization**: Intelligent expense categorization using configurable business categories
+- **Modular Parser System**: Plugin-based architecture for easy bank format extension
+- **AI-Powered Categorization**: Optional OpenAI integration for intelligent expense categorization
+- **Transaction Management**: Delete, edit, and manage transactions with real-time updates
+- **Multiprocessing Support**: Parallel processing for faster PDF analysis
+
+### 📊 Business Tools
 - **Schedule C Generation**: Generate filled IRS Schedule C PDFs with correct field mappings
+- **Category Management**: Configurable business expense categories with learning capabilities
+- **Excel Export**: Detailed transaction reports with category summaries
+- **Search & Filter**: Advanced transaction search and filtering capabilities
+
+### 🖥️ User Interface
 - **Interactive GUI**: PyQt6-based graphical interface for easy use
 - **Visual Field Mapper**: Interactive PyQt6 tool to create and modify PDF field mappings
-- **JSON Configuration**: Flexible configuration system for PDF field mappings
-- **Configurable Categories**: JSON-based business expense categories
+- **Real-time Status**: Live processing updates and bank detection feedback
+- **Context Menus**: Right-click transaction management and bulk operations
 
 
 ## 📋 Table of Contents
@@ -98,11 +117,26 @@ bank_statement_gui.bat
 ./bank_statement_gui.sh
 ```
 
-1. Click "Add PDFs" to select your bank statement files
-2. Choose your business categories file (or use default)
-3. Click "Process PDFs" to analyze transactions
-4. Review and edit categorizations
-5. Generate Schedule C PDF
+1. **Load Bank Statements**: Click "Add PDFs" to select your bank statement files
+   - Supports: Navy Federal, Capital One, Citibank, Chase, Bank of America
+   - Automatically detects bank format from PDF content
+   - Can process multiple banks simultaneously
+
+2. **Configure Categories**: Choose your business categories file (or use default)
+   - Optional: Enable AI categorization for intelligent expense classification
+
+3. **Process Transactions**: Click "Process PDFs" to analyze transactions
+   - Real-time status updates show bank detection and extraction progress
+   - Multiprocessing for faster analysis of multiple files
+
+4. **Manage Transactions**: Review and manage extracted transactions
+   - Edit categories with dropdown menus
+   - Delete unwanted transactions with right-click or delete button
+   - Search and filter transactions by description
+
+5. **Export Results**: Generate reports and tax forms
+   - Export to Excel with category summaries
+   - Generate filled Schedule C PDF forms
 
 ### Method 2: Command Line
 
@@ -118,24 +152,43 @@ This will:
 
 ## 🧩 Core Components
 
-### 1. Bank Statement Analyzer (`bank_statement_analyzer.py`)
-The core engine that extracts and categorizes transactions.
+### 1. Modular Bank Parser System (`bank_parsers/`)
+Plugin-based architecture for parsing different bank statement formats.
+
+**Key Features:**
+- **Auto-Detection**: Automatically identifies bank format from PDF content
+- **Extensible Design**: Easy to add new bank parsers by implementing the interface
+- **Standardized Output**: All parsers return consistent transaction format
+- **Fallback System**: Uses generic parser if bank not recognized
+
+**Supported Banks:**
+- `navy_federal.py`: Navy Federal Credit Union (checking & credit card formats)
+- `capital_one.py`: Capital One credit card statements
+- `citibank.py`: Citibank statements with complex multi-line transactions
+- `chase.py`: Chase statements including PayPal and no-date transactions
+- `bank_of_america.py`: Bank of America traditional formats
+
+### 2. Bank Statement Analyzer (`bank_statement_analyzer.py`)
+The core engine that orchestrates transaction extraction and categorization.
 
 **Key Features:**
 - PDF text extraction using pdfplumber
-- Transaction pattern recognition
-- Pattern-based categorization
-- Schedule C data generation
+- Modular parser integration with automatic bank detection
+- Multiprocessing support for parallel PDF processing
+- Pattern-based and AI-powered categorization
+- Schedule C data generation with field mapping
 
-### 2. GUI Interface (`bank_statement_gui.py`)
-PyQt6-based graphical interface for easy interaction.
+### 3. GUI Interface (`bank_statement_gui.py`)
+PyQt6-based graphical interface for comprehensive transaction management.
 
 **Features:**
-- Drag-and-drop PDF loading
-- Real-time processing progress
-- Interactive transaction review
-- Category editing and management
-- Export capabilities
+- Multi-bank PDF loading with automatic detection
+- Real-time processing progress with bank identification
+- Interactive transaction review and editing
+- Transaction deletion with confirmation dialogs
+- Category management with learning capabilities
+- Search and filter functionality
+- Export capabilities (Excel and Schedule C PDF)
 - **AI-Powered Categorization** (optional)
 
 #### AI Categorization Checkbox
@@ -208,30 +261,33 @@ Interactive PyQt6 tool for creating and modifying PDF field mappings.
    python bank_statement_gui.py
    ```
 
-2. **Load PDFs**:
+2. **Load Bank Statement PDFs**:
    - Click "Add PDFs" or drag-and-drop files
-   - Select multiple bank statement PDFs
-   - Files should be in standard bank statement format
+   - Select multiple bank statement PDFs from any supported bank
+   - **Supported Banks**: Navy Federal, Capital One, Citibank, Chase, Bank of America
+   - Application automatically detects bank format from PDF content
 
-3. **Configure Categories**:
-   - Use default `business_categories.json`
-   - Or load custom category configuration
-   - Categories determine how expenses are classified
+3. **Configure Categories & AI**:
+   - Use default `business_categories.json` or load custom configuration
+   - **Optional**: Enable "Use AI Categorization" checkbox for intelligent expense classification
+   - Categories determine how expenses are classified for tax purposes
 
 4. **Process Transactions**:
-   - Click "Process PDFs"
-   - Monitor progress in the status bar
-   - Review extracted transactions in the table
+   - Click "Process PDFs" to start extraction
+   - **Real-time Status**: Monitor bank detection and extraction progress
+   - **Multiprocessing**: Multiple PDFs processed in parallel for speed
+   - Review extracted transactions in the interactive table
 
-5. **Review and Edit**:
-   - Check transaction categorizations
-   - Edit categories using dropdown menus
-   - Add or modify business rules
+5. **Manage Transactions**:
+   - **Edit Categories**: Use dropdown menus to change transaction categories
+   - **Delete Transactions**: Right-click or use delete button to remove unwanted entries
+   - **Search & Filter**: Find specific transactions by description
+   - **Bulk Operations**: Apply categories to multiple similar transactions
 
-6. **Generate Schedule C**:
-   - Click "Generate Schedule C"
-   - Review expense totals by category
-   - Export filled PDF form
+6. **Export Results**:
+   - **Excel Export**: Generate detailed transaction reports with category summaries
+   - **Schedule C PDF**: Create filled IRS tax forms with expense totals
+   - **Category Learning**: System remembers manual corrections for future processing
 
 #### Using Command Line
 
@@ -299,6 +355,74 @@ Use the interactive GUI to create accurate PDF field mappings:
    - Click "Save Mapping"
    - Export as JSON file
    - Use with Schedule C processor
+
+## 🏗️ Bank Parser Architecture
+
+The modular parser system enables support for multiple bank statement formats through a plugin-based architecture:
+
+### Parser Interface
+
+All bank parsers implement the `BankStatementParser` interface:
+
+```python
+class BankStatementParser:
+    def can_parse(self, text: str) -> bool:
+        """Detect if this parser can handle the PDF content"""
+        
+    def extract_transactions(self, text: str) -> List[Dict]:
+        """Extract transactions with bank-specific logic"""
+        
+    def get_account_info(self, text: str) -> Dict:
+        """Extract account metadata (number, dates, etc.)"""
+```
+
+### Automatic Bank Detection
+
+The system automatically identifies bank formats using unique identifiers:
+
+- **Navy Federal**: "Navy Federal", "NFCU", "Navy Federal Credit Union"
+- **Capital One**: "Capital One", "capitalone.com", "CAPITAL ONE"
+- **Citibank**: "Citibank", "CITI", "citicards.com"
+- **Chase**: "Chase", "JPMorgan Chase", "CHASE CARD SERVICES"
+- **Bank of America**: "Bank of America", "BofA", "bankofamerica.com"
+
+### Parser Registry
+
+The `BankParserRegistry` manages parser detection and priority:
+
+```python
+# Priority order (highest to lowest)
+1. Navy Federal Credit Union
+2. Capital One  
+3. Citibank
+4. Chase
+5. Bank of America
+6. Generic fallback parser
+```
+
+### Adding New Banks
+
+To add support for a new bank:
+
+1. **Create parser file**: `bank_parsers/new_bank.py`
+2. **Implement interface**: Extend `BankStatementParser`
+3. **Add detection logic**: Unique bank identifiers
+4. **Register parser**: Add to `bank_parsers/registry.py`
+5. **Test thoroughly**: Create test cases for various statement formats
+
+### Transaction Format Standards
+
+All parsers return transactions in this standardized format:
+
+```python
+{
+    'date': datetime.date,
+    'description': str,
+    'amount': float,
+    'category': str,
+    'transaction_type': str  # 'debit' or 'credit'
+}
+```
 
 ## 🎯 Configuration Management
 
