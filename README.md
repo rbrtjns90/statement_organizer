@@ -1,6 +1,6 @@
 # Bank Statement Analyzer & Schedule C Generator
 
-A comprehensive Python application that extracts transactions from bank statement PDFs, categorizes business expenses, and generates filled IRS Schedule C tax forms automatically.
+A comprehensive Python application that extracts transactions from bank statement PDFs, categorizes business expenses, and generates filled IRS Schedule C tax forms automatically. Currently only works with BofA but extending it.
 
 ## 🚀 Features
 
