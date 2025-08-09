@@ -3,3 +3,5 @@ pandas
 openpyxl
 python-dateutil>=2.8.0
 PyQt6
+scikit-learn>=1.0.0
+numpy>=1.21.0

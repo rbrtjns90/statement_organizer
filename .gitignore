@@ -184,7 +184,7 @@ cython_debug/
 /Statements/*
 /Excel Files/*
 /utils/
-
+/K_cluster_test/
 # Misc Files
 test_analyzer.py
 schedule_c_data.xlsx

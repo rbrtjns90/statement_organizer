@@ -10,17 +10,20 @@ from .chase import ChaseParser
 from .citibank import CitibankParser
 from .capital_one import CapitalOneParser
 from .navy_federal import NavyFederalParser
+from .generic_regex import GenericRegexParser
 
 
 def initialize_parsers():
     """Initialize and register all available bank parsers."""
     # Order matters! More specific parsers should come first
+    # Generic parser should be LAST as it's a fallback
     parsers = [
         NavyFederalParser(),   # Check Navy Federal first - very specific format
         CapitalOneParser(),    # Check Capital One second - very specific format
         CitibankParser(),      # Check Citi third - more specific patterns
         BankOfAmericaParser(), # Then BofA
-        ChaseParser(),         # Chase last - has broader patterns
+        ChaseParser(),         # Chase has broader patterns
+        GenericRegexParser(),  # Generic fallback parser - LAST
     ]
     
     for parser in parsers:

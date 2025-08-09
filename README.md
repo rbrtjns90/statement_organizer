@@ -10,11 +10,13 @@ A comprehensive Python application that extracts transactions from bank statemen
 - **Citibank**: Complex multi-line transaction formats with orphaned amount matching
 - **Chase**: Standard and no-date transaction patterns with PayPal support
 - **Bank of America**: Traditional bank statement formats
-- **Automatic Detection**: Intelligent bank identification from PDF content
+- **Generic Parser**: AI-powered fallback parser using K-means clustering for unknown statement formats
+- **Automatic Detection**: Intelligent bank identification from PDF content with fallback support
 
 ### 💡 Smart Processing
 - **PDF Transaction Extraction**: Automatically extract transactions from bank statement PDFs
 - **Modular Parser System**: Plugin-based architecture for easy bank format extension
+- **Machine Learning Parser**: K-means clustering algorithm automatically detects transaction patterns in unknown statement formats
 - **AI-Powered Categorization**: Optional OpenAI integration for intelligent expense categorization
 - **Transaction Management**: Delete, edit, and manage transactions with real-time updates
 - **Multiprocessing Support**: Parallel processing for faster PDF analysis
@@ -497,6 +499,44 @@ Maps expense categories to PDF form fields:
 
 ## 🔧 Advanced Features
 
+### Generic Parser with Machine Learning
+
+The system includes an advanced **Generic Parser** that uses machine learning to automatically detect transaction patterns in unknown statement formats:
+
+#### How It Works
+1. **K-means Clustering**: Groups PDF lines by layout features (position, money presence, dates, text characteristics)
+2. **Pattern Detection**: Automatically generates regex patterns for transaction extraction
+3. **Smart Filtering**: Removes summary/header content using keyword detection
+4. **Fallback Support**: Activates when bank-specific parsers fail
+
+#### Technical Features
+- **Layout Analysis**: Analyzes PDF character positioning and line structure
+- **Feature Extraction**: Uses 13+ features including money patterns, date presence, and spatial positioning
+- **Automatic Regex Generation**: Creates custom regex patterns based on detected transaction clusters
+- **Multi-format Support**: Handles various date formats, currency symbols, and layout styles
+
+#### Usage
+The Generic Parser automatically activates as a fallback when:
+- No specific bank parser can handle the PDF
+- Statement format is unknown or unsupported
+- Bank-specific parser fails to extract transactions
+
+```python
+# The Generic Parser is automatically registered and used
+from bank_parsers.generic_regex import GenericRegexParser
+
+# Test if a PDF can be parsed
+parser = GenericRegexParser()
+if parser.can_parse(pdf_text):
+    transactions = parser.extract_transactions(pdf_text)
+```
+
+#### Dependencies
+Requires additional machine learning packages:
+```bash
+pip install scikit-learn numpy pandas
+```
+
 ### Custom Transaction Patterns
 
 Extend transaction recognition by modifying `extract_transactions()` in `bank_statement_analyzer.py`:
@@ -547,6 +587,53 @@ schedule_data = analyzer.generate_schedule_c_data()
 with open("schedule_c_data.json", "w") as f:
     json.dump(schedule_data, f, indent=2)
 ```
+
+### Testing the Generic Parser
+
+The system includes a comprehensive test suite for evaluating the Generic Parser's performance:
+
+#### Running the Test Suite
+
+```bash
+# Activate virtual environment
+source venv_new/bin/activate
+
+# Run comprehensive tests on all PDFs
+python test_generic_parser.py
+```
+
+#### Test Results
+The test script evaluates:
+- **Success Rate**: Percentage of PDFs successfully parsed
+- **Transaction Count**: Number of transactions extracted per file
+- **Parser Comparison**: Generic parser vs bank-specific parsers
+- **Performance Metrics**: Processing time and accuracy
+
+#### Sample Output
+```
+GENERIC PARSER TEST RESULTS
+============================================================
+Total files tested: 20
+Successful extractions: 5
+Success rate: 25.0%
+
+Top performing files:
+  1. 2024-09-09_VISASTMT.pdf: 16 transactions
+  2. Statement_012025_9746.pdf: 24 transactions
+  3. Statement_022025_9746.pdf: 20 transactions
+```
+
+#### Interpreting Results
+- **High transaction counts**: Indicates good pattern detection
+- **Low success rates**: May indicate need for additional training data
+- **Zero transactions**: Could indicate PDF format incompatibility
+
+#### Improving Performance
+To enhance Generic Parser accuracy:
+1. **Add training data**: Include more diverse PDF formats in K_cluster_test/
+2. **Adjust clustering parameters**: Modify n_clusters in `cluster_transactions()`
+3. **Update filtering keywords**: Enhance `summary_keywords` list
+4. **Refine regex patterns**: Improve date and money detection patterns
 
 ## 🐛 Troubleshooting
 
@@ -616,12 +703,26 @@ statement_organizer/
 │   ├── schedule_c_field_mappings.json # PDF field mappings
 │   ├── learned_categories.json    # Learned categorization patterns
 │   └── schedule_c.pdf             # IRS Schedule C form template
+├── bank_parsers/                  # Modular bank parser system
+│   ├── __init__.py               # Parser base classes and registry
+│   ├── registry.py               # Parser registration and detection
+│   ├── navy_federal.py           # Navy Federal Credit Union parser
+│   ├── capital_one.py            # Capital One parser
+│   ├── citibank.py               # Citibank parser
+│   ├── chase.py                  # Chase parser
+│   ├── bank_of_america.py        # Bank of America parser
+│   └── generic_regex.py          # ML-powered generic parser
+├── K_cluster_test/               # Machine learning parser development
+│   ├── regex_builder.py          # Original K-means clustering implementation
+│   ├── requirements.txt          # ML-specific dependencies
+│   └── *.pdf                     # Test PDF files
 ├── bank_statement_analyzer.py     # Core transaction extraction
 ├── bank_statement_gui.py          # Main GUI interface
 ├── final_schedule_c_filler.py     # Main PDF form filler
 ├── schedule_c_processor.py        # Alternative Schedule C processor
 ├── pdf_field_mapper.py            # Field mapping utilities
 ├── create_categories.py           # Category creation tool
+├── test_generic_parser.py         # Generic parser test suite
 ├── requirements.txt               # Python dependencies
 ├── .gitignore                     # Git ignore rules
 ├── venv/                          # Virtual environment
