@@ -59,18 +59,21 @@ class WorkerThread(QThread):
                 else:
                     self.status_update.emit("⚠️ AI categorization unavailable, using pattern matching")
             
-            # Extract transactions from PDFs
+            # Extract transactions from PDFs with multiprocessing
             self.update_progress.emit(30)
             self.status_update.emit(f"📄 Extracting transactions from {len(self.pdf_paths)} PDF(s)...")
             if len(self.pdf_paths) == 1:
                 self.analyzer.extract_from_pdf(self.pdf_paths[0])
             else:
-                self.analyzer.extract_from_multiple_pdfs(self.pdf_paths)
+                # Enable multiprocessing for multiple PDFs
+                self.analyzer.extract_from_multiple_pdfs(self.pdf_paths, use_multiprocessing=True)
             
-            # Categorize transactions
+            # Categorize transactions with multiprocessing
             self.update_progress.emit(70)
             self.status_update.emit(f"🏷️ Categorizing {len(self.analyzer.transactions)} transactions...")
-            self.analyzer.categorize_transactions()
+            # Enable multiprocessing for categorization when AI is enabled or many transactions
+            use_mp = len(self.analyzer.transactions) > 10 or self.use_ai
+            self.analyzer.categorize_transactions(use_multiprocessing=use_mp)
             
             # Return the transactions
             self.update_progress.emit(100)
@@ -504,7 +507,7 @@ class BankStatementGUI(QMainWindow):
             # Auto-generate output path based on PDF name
             base_name = os.path.splitext(os.path.basename(file_path))[0]
             self.output_path = f"{base_name}_categorized.xlsx"
-            self.output_path_label.setText(self.output_path)
+            self.output_filename_input.setText(self.output_path)
     
     def browse_multiple_pdfs(self):
         """Open a file dialog to select multiple PDF files."""
