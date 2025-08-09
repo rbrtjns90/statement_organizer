@@ -14,10 +14,11 @@ from PyQt6.QtWidgets import (
     QPushButton, QLabel, QFileDialog, QComboBox, QTableWidget, 
     QTableWidgetItem, QTabWidget, QMessageBox, QProgressBar,
     QGroupBox, QGridLayout, QLineEdit, QTextEdit, QSplitter,
-    QHeaderView, QDialog, QDialogButtonBox, QStyledItemDelegate, QCheckBox
+    QHeaderView, QDialog, QDialogButtonBox, QStyledItemDelegate, QCheckBox,
+    QMenu
 )
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, QSize
-from PyQt6.QtGui import QFont, QIcon, QColor
+from PyQt6.QtGui import QFont, QIcon, QColor, QAction
 
 from bank_statement_analyzer import BankStatementAnalyzer
 import pandas as pd
@@ -460,11 +461,27 @@ class BankStatementGUI(QMainWindow):
         search_layout.addWidget(self.search_clear_btn)
         all_transactions_layout.addLayout(search_layout)
         
+        # Transaction management buttons
+        transaction_buttons_layout = QHBoxLayout()
+        self.delete_transaction_btn = QPushButton("Delete Selected Transaction")
+        self.delete_transaction_btn.clicked.connect(self.delete_selected_transaction)
+        self.delete_transaction_btn.setEnabled(False)
+        transaction_buttons_layout.addWidget(self.delete_transaction_btn)
+        transaction_buttons_layout.addStretch()  # Push button to the left
+        all_transactions_layout.addLayout(transaction_buttons_layout)
+        
         # All transactions table
         self.all_transactions_table = QTableWidget()
         self.all_transactions_table.setColumnCount(4)
         self.all_transactions_table.setHorizontalHeaderLabels(["Date", "Description", "Amount", "Category"])
         self.all_transactions_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        
+        # Enable context menu and selection
+        self.all_transactions_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.all_transactions_table.customContextMenuRequested.connect(self.show_transaction_context_menu)
+        self.all_transactions_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self.all_transactions_table.itemSelectionChanged.connect(self.on_transaction_selection_changed)
+        
         all_transactions_layout.addWidget(self.all_transactions_table)
         
         self.all_transactions_tab.setLayout(all_transactions_layout)
@@ -885,6 +902,106 @@ class BankStatementGUI(QMainWindow):
         self.search_input.clear()
         for row in range(self.all_transactions_table.rowCount()):
             self.all_transactions_table.setRowHidden(row, False)
+    
+    def on_transaction_selection_changed(self):
+        """Handle transaction selection changes."""
+        selected_rows = self.all_transactions_table.selectionModel().selectedRows()
+        self.delete_transaction_btn.setEnabled(len(selected_rows) > 0)
+    
+    def show_transaction_context_menu(self, position):
+        """Show context menu for transaction table."""
+        if self.all_transactions_table.itemAt(position) is None:
+            return
+        
+        context_menu = QMenu(self)
+        
+        delete_action = QAction("Delete Transaction", self)
+        delete_action.triggered.connect(self.delete_selected_transaction)
+        context_menu.addAction(delete_action)
+        
+        # Only enable if a transaction is selected
+        selected_rows = self.all_transactions_table.selectionModel().selectedRows()
+        delete_action.setEnabled(len(selected_rows) > 0)
+        
+        context_menu.exec(self.all_transactions_table.mapToGlobal(position))
+    
+    def delete_selected_transaction(self):
+        """Delete the selected transaction."""
+        selected_rows = self.all_transactions_table.selectionModel().selectedRows()
+        
+        if not selected_rows:
+            QMessageBox.warning(self, "No Selection", "Please select a transaction to delete.")
+            return
+        
+        # Get the selected row
+        row = selected_rows[0].row()
+        
+        # Get transaction details for confirmation
+        date_item = self.all_transactions_table.item(row, 0)
+        desc_item = self.all_transactions_table.item(row, 1)
+        amount_item = self.all_transactions_table.item(row, 2)
+        
+        if not all([date_item, desc_item, amount_item]):
+            QMessageBox.warning(self, "Error", "Unable to retrieve transaction details.")
+            return
+        
+        # Confirm deletion
+        reply = QMessageBox.question(
+            self,
+            "Confirm Deletion",
+            f"Are you sure you want to delete this transaction?\n\n"
+            f"Date: {date_item.text()}\n"
+            f"Description: {desc_item.text()}\n"
+            f"Amount: {amount_item.text()}",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No
+        )
+        
+        if reply == QMessageBox.StandardButton.Yes:
+            self.delete_transaction(row)
+    
+    def delete_transaction(self, row):
+        """Delete a specific transaction by row."""
+        try:
+            # Remove from the transactions list
+            if row in self.transaction_indices:
+                transaction_to_remove = self.transaction_indices[row]
+                
+                # Find and remove from the main transactions list
+                for i, transaction in enumerate(self.transactions):
+                    if (transaction['date'] == transaction_to_remove['date'] and
+                        transaction['description'] == transaction_to_remove['description'] and
+                        transaction['amount'] == transaction_to_remove['amount']):
+                        self.transactions.pop(i)
+                        break
+                
+                # Remove from the table
+                self.all_transactions_table.removeRow(row)
+                
+                # Rebuild the transaction indices mapping
+                self.rebuild_transaction_indices()
+                
+                # Update the category summary
+                self.update_category_summary()
+                
+                # Update status
+                self.update_status(f"✅ Transaction deleted successfully. {len(self.transactions)} transactions remaining.")
+                
+                # Disable delete button since selection is cleared
+                self.delete_transaction_btn.setEnabled(False)
+                
+            else:
+                QMessageBox.warning(self, "Error", "Transaction not found in the index.")
+                
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to delete transaction: {str(e)}")
+    
+    def rebuild_transaction_indices(self):
+        """Rebuild the transaction indices mapping after deletion."""
+        self.transaction_indices = {}
+        for row in range(self.all_transactions_table.rowCount()):
+            if row < len(self.transactions):
+                self.transaction_indices[row] = self.transactions[row]
 
 
 def main():

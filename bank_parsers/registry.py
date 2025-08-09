@@ -8,13 +8,17 @@ from . import parser_registry
 from .bank_of_america import BankOfAmericaParser
 from .chase import ChaseParser
 from .citibank import CitibankParser
+from .capital_one import CapitalOneParser
+from .navy_federal import NavyFederalParser
 
 
 def initialize_parsers():
     """Initialize and register all available bank parsers."""
     # Order matters! More specific parsers should come first
     parsers = [
-        CitibankParser(),      # Check Citi first - more specific patterns
+        NavyFederalParser(),   # Check Navy Federal first - very specific format
+        CapitalOneParser(),    # Check Capital One second - very specific format
+        CitibankParser(),      # Check Citi third - more specific patterns
         BankOfAmericaParser(), # Then BofA
         ChaseParser(),         # Chase last - has broader patterns
     ]
