@@ -11,6 +11,7 @@ from .citibank import CitibankParser
 from .capital_one import CapitalOneParser
 from .navy_federal import NavyFederalParser
 from .generic_regex import GenericRegexParser
+from .ml_parser import MLBankParser
 
 
 def initialize_parsers():
@@ -23,6 +24,7 @@ def initialize_parsers():
         CitibankParser(),      # Check Citi third - more specific patterns
         BankOfAmericaParser(), # Then BofA
         ChaseParser(),         # Chase has broader patterns
+        MLBankParser(),        # ML parser - high accuracy fallback
         GenericRegexParser(),  # Generic fallback parser - LAST
     ]
     
@@ -41,6 +43,11 @@ def detect_bank(pdf_text: str):
     """Detect which bank parser can handle the given PDF text."""
     parser = parser_registry.get_parser(pdf_text)
     return parser.bank_name if parser else "Unknown"
+
+
+def get_all_parsers():
+    """Get all registered parsers as a dictionary."""
+    return {parser.bank_name: parser for parser in parser_registry._parsers}
 
 
 # Auto-initialize when module is imported

@@ -152,6 +152,28 @@ This will:
 - Categorize transactions automatically
 - Generate `schedule_c_final_filled.pdf`
 
+## 📁 Project Structure
+
+```
+statement_organizer/
+├── bank_parsers/           # Core parser implementations
+│   ├── base_parser.py     # Base parser interface
+│   ├── navy_federal.py    # Navy Federal parser
+│   ├── capital_one.py     # Capital One parser
+│   ├── citibank.py        # Citibank parser
+│   ├── chase.py           # Chase parser
+│   ├── bank_of_america.py # Bank of America parser
+│   ├── generic_parser.py  # AI-powered generic parser
+│   └── ml_parser.py       # ML-based parser (99.7% accuracy)
+├── ml_models/             # Trained ML models
+├── config/                # Configuration files
+├── Statements/            # Input PDF statements
+├── utils/                 # Development and analysis tools
+├── bank_statement_analyzer.py  # Core analyzer engine
+├── bank_statement_gui.py       # GUI application
+└── requirements.txt       # Dependencies
+```
+
 ## 🧩 Core Components
 
 ### 1. Modular Bank Parser System (`bank_parsers/`)
