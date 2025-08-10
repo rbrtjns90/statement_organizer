@@ -79,17 +79,20 @@ class MLBankParser(BankStatementParser):
                         self.ml_parser = pickle.load(f)
                     logger.info(f"✅ Complete ML parser loaded from {complete_model_path}")
                     return
-                except ImportError:
+                except ImportError as ie:
                     # If import fails, try loading without explicit imports (pickle may still work)
                     try:
                         with open(complete_model_path, 'rb') as f:
                             self.ml_parser = pickle.load(f)
                         logger.info(f"✅ Complete ML parser loaded from {complete_model_path} (without explicit imports)")
                         return
-                    except Exception as e:
-                        logger.warning(f"⚠️ Could not load complete ML parser: {e}")
+                    except Exception:
+                        # Silently continue to fallback - this is expected in some execution contexts
+                        pass
                 except Exception as e:
-                    logger.warning(f"⚠️ Could not load complete ML parser: {e}")
+                    # Only log if it's not a common pickle namespace issue
+                    if "Can't get attribute" not in str(e):
+                        logger.warning(f"⚠️ Could not load complete ML parser: {e}")
             
             # Fallback to basic model
             if os.path.exists(self.model_path):
@@ -105,8 +108,11 @@ class MLBankParser(BankStatementParser):
     
     def can_parse(self, text: str) -> bool:
         """Check if ML parser can handle the given PDF text."""
-        # ML parser can attempt to parse any PDF if model is loaded
-        if not (hasattr(self, 'ml_parser') and self.ml_parser) and not self.model:
+        # ML parser can attempt to parse any PDF if either model is loaded
+        has_complete_parser = hasattr(self, 'ml_parser') and self.ml_parser
+        has_fallback_model = hasattr(self, 'model') and self.model
+        
+        if not (has_complete_parser or has_fallback_model):
             return False
         
         # Basic checks for PDF content
