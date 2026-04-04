@@ -5,3 +5,11 @@ python-dateutil>=2.8.0
 PyQt6
 scikit-learn>=1.0.0
 numpy>=1.21.0
+llama-cpp-python
+Pillow
+pdf2image>=1.16.0
+
+# macOS Vision Framework OCR (macOS only)
+pyobjc-framework-Quartz>=9.0; sys_platform == "darwin"
+pyobjc-framework-Vision>=9.0; sys_platform == "darwin"
+

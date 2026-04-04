@@ -17,7 +17,7 @@ from PyQt6.QtWidgets import (
     QHeaderView, QDialog, QDialogButtonBox, QStyledItemDelegate, QCheckBox,
     QMenu
 )
-from PyQt6.QtCore import Qt, QThread, pyqtSignal, QSize
+from PyQt6.QtCore import Qt, QThread, pyqtSignal, QSize, QTimer
 from PyQt6.QtGui import QFont, QIcon, QColor, QAction
 
 from bank_statement_analyzer import BankStatementAnalyzer
@@ -54,11 +54,14 @@ class WorkerThread(QThread):
             # Enable AI categorization if requested and available
             if self.use_ai:
                 self.status_update.emit("🤖 Enabling AI categorization...")
-                ai_enabled = self.analyzer.enable_ai_categorization()
+                # Estimate transactions: assume ~50 transactions per PDF on average
+                estimated_txns = len(self.pdf_paths) * 50
+                ai_enabled = self.analyzer.enable_ai_categorization(estimated_transactions=estimated_txns)
                 if ai_enabled:
-                    self.status_update.emit("✅ AI categorization ready")
+                    ctx_size = getattr(self.analyzer, 'n_ctx', 2048)
+                    self.status_update.emit(f"✅ AI ready (context: {ctx_size} tokens)")
                 else:
-                    self.status_update.emit("⚠️ AI categorization unavailable, using pattern matching")
+                    self.status_update.emit("⚠️ AI unavailable, using pattern matching")
             
             # Extract transactions from PDFs with multiprocessing
             self.update_progress.emit(30)
@@ -343,16 +346,106 @@ class BankStatementGUI(QMainWindow):
         self.transactions = []
         self.current_analyzer = None
         self.transaction_indices = {}  # Map to track transaction indices in the table
+        self.ai_settings_path = "config/ai_settings.json"
+        self.ai_settings = self._load_ai_settings()
         
         self.setup_ui()
+        QTimer.singleShot(0, self._maybe_prompt_for_ai_setup)
     
+    def _load_ai_settings(self):
+        if os.path.exists(self.ai_settings_path):
+            try:
+                with open(self.ai_settings_path, 'r') as f:
+                    return json.load(f)
+            except Exception:
+                return {}
+        return {}
+
+    def _save_ai_settings(self):
+        os.makedirs(os.path.dirname(self.ai_settings_path), exist_ok=True)
+        with open(self.ai_settings_path, 'w') as f:
+            json.dump(self.ai_settings, f, indent=2)
+
     def _check_ai_available(self):
         """Check if AI categorization is available."""
         try:
-            import openai
+            import llama_cpp  # noqa: F401
+            return True
+        except ImportError:
+            pass
+
+        try:
+            import openai  # noqa: F401
             return os.path.exists("openai.txt")
         except ImportError:
             return False
+
+    def _maybe_prompt_for_ai_setup(self):
+        if self.ai_settings.get('initial_setup_complete'):
+            preferred_backend = self.ai_settings.get('preferred_backend')
+            if preferred_backend in {'local', 'openai'}:
+                self.ai_checkbox.setChecked(True)
+            return
+
+        message_box = QMessageBox(self)
+        message_box.setWindowTitle('AI Setup')
+        message_box.setText(
+            'Would you like to download the local AI model for categorization on this device?\n\n'
+            'Choose Yes to download the local model, No to keep using an OpenAI key, or Cancel to skip setup for now.'
+        )
+        message_box.setIcon(QMessageBox.Icon.Question)
+        message_box.setStandardButtons(
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No | QMessageBox.StandardButton.Cancel
+        )
+        message_box.setDefaultButton(QMessageBox.StandardButton.Yes)
+        choice = message_box.exec()
+
+        if choice == QMessageBox.StandardButton.Yes:
+            self._download_local_ai_model()
+            return
+
+        if choice == QMessageBox.StandardButton.No:
+            self.ai_settings['initial_setup_complete'] = True
+            self.ai_settings['preferred_backend'] = 'openai'
+            self._save_ai_settings()
+            self.ai_checkbox.setChecked(self._check_ai_available())
+            return
+
+        self.ai_settings['initial_setup_complete'] = True
+        self.ai_settings['preferred_backend'] = 'none'
+        self._save_ai_settings()
+        self.ai_checkbox.setChecked(False)
+
+    def _download_local_ai_model(self):
+        analyzer = BankStatementAnalyzer()
+        progress = QMessageBox(self)
+        progress.setWindowTitle('Downloading AI Model')
+        progress.setText(f'Downloading local GGUF model to {analyzer.local_model_path}. This may take a while on first run.')
+        progress.setStandardButtons(QMessageBox.StandardButton.NoButton)
+        progress.show()
+        QApplication.processEvents()
+
+        try:
+            local_path = analyzer.download_local_ai_model()
+            progress.close()
+            self.ai_settings['initial_setup_complete'] = True
+            self.ai_settings['preferred_backend'] = 'local'
+            self.ai_settings['local_model_path'] = local_path
+            self._save_ai_settings()
+            self.ai_checkbox.setChecked(True)
+            QMessageBox.information(
+                self,
+                'Download Complete',
+                f'Local AI model downloaded successfully to:\n{local_path}'
+            )
+        except Exception as e:
+            progress.close()
+            QMessageBox.warning(
+                self,
+                'Download Failed',
+                f'Could not download the local AI model: {e}\n\n'
+                'Make sure the download URL is reachable and llama-cpp-python is installed.'
+            )
     
     def setup_ui(self):
         """Set up the user interface."""
@@ -399,8 +492,8 @@ class BankStatementGUI(QMainWindow):
         
         # AI categorization checkbox
         self.ai_checkbox = QCheckBox("Use AI Categorization")
-        self.ai_checkbox.setToolTip("Enable AI-powered transaction categorization (requires openai.txt file)")
-        self.ai_checkbox.setChecked(self._check_ai_available())
+        self.ai_checkbox.setToolTip("Enable AI-powered transaction categorization using a local GGUF model or OpenAI fallback")
+        self.ai_checkbox.setChecked(self.ai_settings.get("preferred_backend") in {"local", "openai"} and self._check_ai_available())
         file_layout.addWidget(self.ai_checkbox, 2, 0, 1, 2)
         
         # Output file selection
