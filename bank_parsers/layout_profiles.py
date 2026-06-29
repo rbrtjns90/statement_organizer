@@ -262,23 +262,34 @@ def get_profile_for_pdf(bank: Optional[str], pdf_path: Optional[str] = None,
     # geometry trap where a checking statement's balance column (x1≈594) is more
     # populous than its amount column (x1≈473), which fooled the pure-geometry
     # matcher into picking the credit profile.
+    #
+    # IMPORTANT: the marker must appear on a line WITH a dollar amount (a real
+    # total line). Markers also appear in legal disclosure prose (e.g. a Visa
+    # statement's interest-calculation text mentions "beginning balance"), which
+    # falsely triggered the checking match. Requiring an amount on the same line
+    # distinguishes a real total from boilerplate.
     if text is None and pdf_path:
         text = _read_text(pdf_path)
     if text:
-        low = text.lower()
+        import re as _re
+        money_re = _re.compile(r"\$?\s*[\d,]+\.\d{2}")
+        def _has_total_line(markers):
+            """True if any line contains a marker AND a money token."""
+            for line in text.splitlines():
+                ll = line.lower()
+                if any(m in ll for m in markers) and money_re.search(line):
+                    return True
+            return False
         for prof in candidates:
-            # Checking statements declare Beginning/Ending Balance. This is a
-            # strong, unambiguous signal (credit statements don't use these).
-            if prof.bank_type == "checking" and (
-                "beginning balance" in low or "ending balance" in low
+            # Checking statements declare Beginning/Ending Balance on a total line.
+            if prof.bank_type == "checking" and _has_total_line(
+                ["beginning balance", "ending balance"]
             ):
                 return prof
-            if prof.bank_type == "credit" and (
-                "previous balance" in low and "new balance" in low
+            if prof.bank_type == "credit" and _has_total_line(
+                ["previous balance", "new balance"]
             ):
-                # Only return credit if it's clearly not a checking statement.
-                if "beginning balance" not in low:
-                    return prof
+                return prof
 
     # Fall back to geometry: inspect the PDF's amount-column x1 to disambiguate.
     detected_x1 = _detect_amount_x1(pdf_path, text)

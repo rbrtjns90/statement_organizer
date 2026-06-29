@@ -410,8 +410,11 @@ def parse_line(
     # collapse repeated whitespace
     description = re.sub(r"\s+", " ", description)
 
+    # A line with a date + amount but NO description is still a real transaction
+    # (some merchants transmit no description text). Use a placeholder rather
+    # than dropping it — dropping would under-extract and break reconciliation.
     if not description:
-        return None
+        description = "(no description)"
 
     # Guard: a line with MULTIPLE amount tokens in the amount column is a summary
     # table row (e.g. BofA "Daily Balance Summary": "02/01 13,865.01 02/12 ..."),
@@ -424,8 +427,10 @@ def parse_line(
         return None
 
     # Guard: a line whose "description" is only dates and amounts (no merchant
-    # text) is a summary/balance row, not a transaction.
-    if description and not any(
+    # text) is a summary/balance row, not a transaction. Skip this check when
+    # there are no description words (the placeholder case — a real transaction
+    # that genuinely lacks a description, which we keep for reconciliation).
+    if desc_words and not any(
         not _is_date_token(w["text"]) and not _looks_like_amount(w["text"])
         for w in desc_words
     ):
