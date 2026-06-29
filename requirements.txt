@@ -1,19 +1,64 @@
-pdfplumber>=0.9.0
-pandas
-openpyxl
-python-dateutil>=2.8.0
-PyQt6
-scikit-learn>=1.0.0
-scikit-image>=0.20.0
-scipy>=1.9.0
-numpy>=1.21.0
-llama-cpp-python
-Pillow
-pdf2image>=1.16.0
-rapidfuzz>=3.0.0
-openai>=1.0.0
+# =============================================================================
+# Statement Organizer — Python dependencies
+# =============================================================================
+# Install with:  pip install -r requirements.txt
+#
+# Grouped by purpose. The core extraction pipeline needs only the first two
+# groups; the AI/ML and OCR groups are optional (the system degrades gracefully
+# when they're absent).
+# =============================================================================
 
-# macOS Vision Framework OCR (macOS only)
+# ---- Core PDF processing & data handling ----
+pdfplumber>=0.9.0          # text + word-geometry extraction (the geometry extractor's foundation)
+PyMuPDF>=1.23.0            # imported as `fitz` — PDF form-filling (Schedule C), field inspection
+pypdf>=3.0.0               # imported as PyPDF2 — PDF merge/split/page-count (report generation)
+Pillow>=9.0.0              # imported as PIL — image rendering for OCR + AI vision
+pdf2image>=1.16.0          # rasterize PDF pages for OCR backends
+
+# ---- Data output ----
+pandas>=1.5.0              # Excel/CSV output, category summaries
+openpyxl>=3.0.0            # .xlsx writer engine for pandas
+python-dateutil>=2.8.0     # robust date parsing across bank formats
+
+# ---- Categorization (fuzzy matching) ----
+rapidfuzz>=3.0.0           # merchant normalization + fuzzy category acceptance
+
+# ---- GUI ----
+PyQt6>=6.5.0               # the desktop application
+
+# ---- ReportLab (verification/eval PDF generation) ----
+reportlab>=4.0.0           # generates the verification report PDFs
+
+# ---- AI backends (optional but recommended) ----
+# The unified AIClient tries local first, then OpenAI. At least one enables
+# AI categorization, AI extraction repair, and AI profile generation.
+llama-cpp-python>=0.3.0    # local GGUF model inference (Gemma 4). Build with Metal/CUDA:
+                           #   CMAKE_ARGS="-DGGML_METAL=on" pip install llama-cpp-python
+openai>=1.0.0              # OpenAI API fallback (gpt-4o-mini). Needs a key in config/openai.txt
+
+# ---- ML parser (optional legacy path) ----
+# The LightGBM row-classifier parser. The geometry extractor is now primary;
+# this is kept for the fallback chain.
+scikit-learn>=1.0.0        # used by generic_regex clustering + ml_parser features
+scikit-image>=0.20.0       # imported as skimage — image preprocessing for OCR
+scipy>=1.9.0               # ndimage deskew in image_normalization
+numpy>=1.21.0              # array ops for clustering + image processing
+lightgbm>=3.3.0            # the ML row classifier model
+# xgboost and torch are imported only by the experimental trainer (utils/);
+# not required for production. Uncomment to train new ML models:
+# xgboost>=2.0.0
+# torch>=2.0.0
+
+# ---- OCR backends (for image-only / scanned PDFs) ----
+# The OCR-geometry bridge auto-selects Vision (macOS) or Tesseract (cross-platform).
+# At least one is needed to extract from scanned statements.
+pytesseract>=0.3.10        # cross-platform OCR — also requires the `tesseract` system binary
+                           #   macOS:  brew install tesseract
+                           #   Ubuntu: sudo apt install tesseract-ocr
+                           #   Windows: https://github.com/UB-Mannheim/tesseract
+
+# ---- macOS-only: native Vision OCR + PDF rendering (auto-skipped elsewhere) ----
+pyobjc-core>=9.0; sys_platform == "darwin"
+pyobjc-framework-Cocoa>=9.0; sys_platform == "darwin"
 pyobjc-framework-Quartz>=9.0; sys_platform == "darwin"
 pyobjc-framework-Vision>=9.0; sys_platform == "darwin"
-
