@@ -28,11 +28,11 @@ from collections import Counter
 # Project root on path.
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from bank_parsers.extraction_pipeline import ExtractionPipeline
+from bank_parsers.reconciliation_pipeline import ReconciliationPipeline
 from bank_statement_analyzer import BankStatementAnalyzer
 
 
-def run_on_pdf(pipe: ExtractionPipeline, pdf_path: str, use_ai: bool) -> dict:
+def run_on_pdf(pipe: ReconciliationPipeline, pdf_path: str, use_ai: bool) -> dict:
     """Extract + categorize one PDF. Returns a result dict."""
     result = pipe.extract(pdf_path)
     analyzer = BankStatementAnalyzer()
@@ -43,11 +43,10 @@ def run_on_pdf(pipe: ExtractionPipeline, pdf_path: str, use_ai: bool) -> dict:
     return {
         "path": pdf_path,
         "bank": result.bank,
-        "source": result.parser_source,
+        "source": result.method,
         "confidence": result.confidence,
-        "count": result.count,
-        "rejected": result.rejected_count,
-        "ai_used": result.ai_used,
+        "count": len(result.transactions),
+        "ai_used": result.ai_repair_used,
         "ai_backend": result.ai_backend,
         "categories": dict(Counter(t["category"] for t in analyzer.transactions)),
         "stats": stats,
@@ -68,7 +67,7 @@ def main():
         print(f"No PDFs found under {args.dir}")
         return
 
-    pipe = ExtractionPipeline()
+    pipe = ReconciliationPipeline()
     print(f"Processing {len(pdfs)} PDF(s) from {args.dir}\n")
     print(f"{'PDF':<40} {'bank':<14} {'conf':>5} {'cnt':>4} {'rej':>3} {'ai':>3}  categories")
     print("-" * 110)

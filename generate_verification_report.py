@@ -21,7 +21,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from collections import Counter
 
-from bank_parsers.extraction_pipeline import ExtractionPipeline
+from bank_parsers.reconciliation_pipeline import ReconciliationPipeline
 from bank_statement_analyzer import BankStatementAnalyzer
 
 # One representative PDF per bank. Chosen from the corpus.
@@ -36,7 +36,7 @@ SAMPLES = [
 
 def run_extraction():
     """Run the pipeline on each sample. Returns list of result dicts."""
-    pipe = ExtractionPipeline()
+    pipe = ReconciliationPipeline()
     results = []
     for label, path in SAMPLES:
         if not os.path.exists(path):
@@ -55,10 +55,10 @@ def run_extraction():
                 "source_file": os.path.basename(path),
                 "bank_detected": r.bank,
                 "confidence": r.confidence,
-                "ai_used": r.ai_used,
+                "ai_used": r.ai_repair_used,
                 "ai_backend": r.ai_backend,
-                "parser_source": r.parser_source,
-                "count": r.count,
+                "method": r.method,
+                "count": len(r.transactions),
                 "kw_matches": stats.keyword,
                 "ai_matches": stats.ai,
                 "default_matches": stats.default,

@@ -133,9 +133,12 @@ class BankStatementAnalyzer:
             return self._extract_legacy(pdf_path)
 
     def _extract_legacy(self, pdf_path):
-        """Legacy fallback: text extraction + inline regex parsing."""
-        from bank_parsers.registry import detect_bank, initialize_parsers
-        from bank_parsers import parser_registry
+        """Legacy fallback: text extraction + inline regex parsing.
+
+        Uses a SINGLE detection call (detect_bank) then looks up the parser by
+        bank name — no redundant per-parser can_parse scan.
+        """
+        from bank_parsers.registry import detect_bank, initialize_parsers, get_parser_for_bank
         from bank_parsers.transaction_filters import clean_transactions
 
         initialize_parsers()
@@ -143,7 +146,7 @@ class BankStatementAnalyzer:
         if not text.strip():
             return []
         bank = detect_bank(text, pdf_path)
-        parser = parser_registry.get_parser(text)
+        parser = get_parser_for_bank(bank)
         if parser:
             raw = parser.extract_transactions(text)
             self.transactions = clean_transactions(raw)

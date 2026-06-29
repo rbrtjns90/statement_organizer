@@ -1,240 +1,117 @@
 """
 AI-Based Bank Detection
 ------------------------
-Uses multimodal AI to detect bank from PDF statements.
-Includes Vision OCR fallback for scanned documents on macOS.
+Detects the issuing bank from a PDF statement using the unified AIClient
+(local model first, OpenAI fallback). This module no longer loads its own
+Llama instance directly — all AI calls route through ai_client.py so that
+backend selection, fallback, caching, and cost tracking are consistent.
 """
 
-import os
-import json
 import base64
 import io
+import json
+import os
+import re
+
 from PIL import Image
 import pdfplumber
-import platform
 
-try:
-    from llama_cpp import Llama
-    LLAMA_CPP_AVAILABLE = True
-except ImportError:
-    LLAMA_CPP_AVAILABLE = False
-    Llama = None
+# Known banks (for prompt context + response validation)
+KNOWN_BANKS = [
+    "Bank of America", "Chase", "Citibank", "Citi", "Capital One", "Navy Federal",
+    "Wells Fargo", "US Bank", "PNC Bank", "TD Bank", "Truist",
+    "Citizens Bank", "Fifth Third Bank", "KeyBank", "Regions Bank",
+    "M&T Bank", "Ally Bank", "Discover Bank", "American Express",
+]
 
-# Import Vision OCR for scanned PDFs on macOS
-VISION_OCR_AVAILABLE = False
-if platform.system() == "Darwin":
-    try:
-        from .vision_ocr import extract_text_from_pdf as vision_extract_text
-        VISION_OCR_AVAILABLE = True
-    except ImportError:
-        vision_extract_text = None
+# Alias normalization
+_BANK_ALIASES = {
+    "Citi": "Citibank",
+    "CITI": "Citibank",
+}
 
-
-class AIBankDetector:
-    """Detects bank using multimodal AI (image + text)."""
-    
-    @staticmethod
-    def _detect_gpu():
-        """Detect available GPU acceleration."""
-        try:
-            # Try to detect Metal (macOS)
-            import platform
-            if platform.system() == "Darwin":
-                # Check for Apple Silicon
-                if platform.machine() == "arm64":
-                    return "metal", -1  # -1 means use all layers
-            
-            # Try to detect CUDA (NVIDIA)
-            try:
-                import torch
-                if torch.cuda.is_available():
-                    return "cuda", -1
-            except ImportError:
-                pass
-            
-            # Try to detect ROCm (AMD)
-            try:
-                import torch
-                if hasattr(torch, 'hip') and torch.hip.is_available():
-                    return "rocm", -1
-            except (ImportError, AttributeError):
-                pass
-                
-        except Exception as e:
-            print(f"⚠️ GPU detection error: {e}")
-        
-        return None, 0  # CPU-only
-    
-    def __init__(self, model_path=None):
-        """Initialize with local GGUF model."""
-        self.model_path = model_path or os.getenv(
-            "STATEMENT_ORGANIZER_AI_MODEL_PATH", 
-            os.path.join("models", "gemma-4-e2b-it-Q8_0.gguf")
-        )
-        self.client = None
-        self.backend = None
-        
-        if LLAMA_CPP_AVAILABLE and os.path.exists(self.model_path):
-            # Detect GPU acceleration
-            gpu_type, n_gpu_layers = self._detect_gpu()
-            
-            try:
-                self.client = Llama(
-                    model_path=self.model_path,
-                    n_ctx=2048,  # Increased back to 2048 for transaction extraction
-                    n_threads=max(1, (os.cpu_count() or 2) - 1),
-                    verbose=False,
-                    n_gpu_layers=n_gpu_layers,  # Auto-detect GPU layers
-                )
-                self.backend = "llama_cpp"
-                
-                if gpu_type:
-                    print(f"✅ AI bank detector initialized with {self.model_path} ({gpu_type.upper()} acceleration)")
-                else:
-                    print(f"✅ AI bank detector initialized with {self.model_path} (CPU-only)")
-            except Exception as e:
-                print(f"⚠️ Could not initialize AI detector: {e}")
-    
-    def detect_bank(self, pdf_path):
-        """Detect bank using multimodal AI."""
-        if not self.client:
-            return None
-            
-        try:
-            # Extract first page as image
-            with pdfplumber.open(pdf_path) as pdf:
-                first_page = pdf.pages[0]
-                # Convert to PIL Image with higher resolution
-                pix = first_page.to_image(resolution=150)  # Increased from 72 to 150 DPI
-                pil_image = pix.original
-                
-                # Resize image to reduce size (max width 1200px) - increased from 800px
-                max_width = 1200
-                if pil_image.width > max_width:
-                    ratio = max_width / pil_image.width
-                    new_size = (max_width, int(pil_image.height * ratio))
-                    pil_image = pil_image.resize(new_size, Image.LANCZOS)
-                
-                # Convert image to base64
-                buffered = io.BytesIO()
-                pil_image.save(buffered, format="PNG", optimize=True)
-                image_b64 = base64.b64encode(buffered.getvalue()).decode()
-                
-                # Extract text with pdfplumber only (Vision OCR disabled due to crashes)
-                page_text = first_page.extract_text() or ""
-                
-                # Get text excerpt (first 12 lines)
-                text_lines = page_text.split('\n')[:12]
-                text_excerpt = '\n'.join(text_lines)
-
-            # Build prompt for bank identification with confidence
-            # Include both known banks (with parsers) and common banks (for detection)
-            known_banks = [
-                "Bank of America", "Chase", "Citibank", "Citi", "Capital One", "Navy Federal",
-                "Wells Fargo", "US Bank", "PNC Bank", "TD Bank", "Truist",
-                "Citizens Bank", "Fifth Third Bank", "KeyBank", "Regions Bank",
-                "M&T Bank", "Ally Bank", "Discover Bank", "American Express"
-            ]
-            prompt = (
-                f"Identify the bank from this statement. "
-                f"Common banks: {', '.join(known_banks[:10])}. "
-                f"Text: {text_excerpt}. "
-                f"Respond with JSON: {{\"bank\": \"<exact name>\", \"confidence\": <0-100>}}"
-            )
-
-            # Prepare multimodal message
-            messages = [
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": prompt},
-                        {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{image_b64}"}}
-                    ]
-                }
-            ]
-
-            # Call the model
-            response = self.client.create_chat_completion(
-                messages=messages,
-                max_tokens=30,  # Increased slightly for JSON response
-                temperature=0
-            )
-            
-            response_text = response["choices"][0]["message"]["content"].strip()
-            
-            # Try to parse JSON response
-            try:
-                import re
-                # Extract JSON object
-                json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
-                if json_match:
-                    result = json.loads(json_match.group(0))
-                    bank_name = result.get("bank", "")
-                    confidence = result.get("confidence", 0)
-                else:
-                    # Fallback: treat entire response as bank name
-                    bank_name = response_text
-                    confidence = 50
-            except (json.JSONDecodeError, AttributeError):
-                # Fallback: treat entire response as bank name
-                bank_name = response_text
-                confidence = 50
-            
-            # Validate response and normalize bank names
-            # Map aliases to canonical names
-            bank_aliases = {
-                "Citi": "Citibank",
-                "CITI": "Citibank"
-            }
-            
-            # Normalize bank name if it's an alias
-            if bank_name in bank_aliases:
-                bank_name = bank_aliases[bank_name]
-            
-            if bank_name in known_banks:
-                return {"bank": bank_name, "confidence": confidence}
-            else:
-                print(f"⚠️ AI returned unrecognized bank: {bank_name}")
-                return {"bank": None, "confidence": 0}
-
-        except Exception as e:
-            print(f"❌ AI bank detection error: {e}")
-            return None
-
-
-# Global detector instance
-_detector = None
-
-def get_ai_detector():
-    """Get or create the AI detector instance."""
-    global _detector
-    if _detector is None:
-        _detector = AIBankDetector()
-    return _detector
 
 def detect_bank_with_ai(pdf_path, return_confidence=False):
-    """Convenience function to detect bank using AI.
-    
+    """Detect the issuing bank from a PDF using the unified AIClient.
+
     Args:
-        pdf_path: Path to PDF file
-        return_confidence: If True, returns dict with bank and confidence.
-                          If False, returns just bank name (backward compatible)
-    
+        pdf_path: Path to the PDF file.
+        return_confidence: If True, returns {"bank": str, "confidence": int}.
+                          If False, returns just the bank name string.
+
     Returns:
-        If return_confidence=True: {"bank": str, "confidence": int}
-        If return_confidence=False: str (bank name only)
+        Bank name (str), or {"bank": ..., "confidence": ...} dict, or None.
     """
-    detector = get_ai_detector()
-    result = detector.detect_bank(pdf_path)
-    
-    if result is None:
-        return None if return_confidence else None
-    
+    from .ai_client import get_ai_client, extract_json
+
+    client = get_ai_client()
+    if not client.available:
+        return None
+
+    try:
+        with pdfplumber.open(pdf_path) as pdf:
+            first_page = pdf.pages[0]
+            image_b64, text_excerpt = _render_first_page(first_page)
+    except Exception as exc:
+        print(f"AI bank detection render error: {exc}")
+        return None
+
+    prompt = (
+        f"Identify the bank from this statement. "
+        f"Common banks: {', '.join(KNOWN_BANKS[:10])}. "
+        f"Text: {text_excerpt}. "
+        f'Respond with JSON: {{"bank": "<exact name>", "confidence": <0-100>}}'
+    )
+
+    try:
+        resp = client.chat_vision(image_b64, prompt, max_tokens=30, temperature=0)
+        if not resp.success:
+            return None
+        response_text = resp.text.strip()
+    except Exception as exc:
+        print(f"AI bank detection error: {exc}")
+        return None
+
+    # Parse the JSON response
+    payload = extract_json(response_text)
+    if isinstance(payload, dict) and "bank" in payload:
+        bank_name = payload["bank"]
+        confidence = int(payload.get("confidence", 50))
+    else:
+        # Fallback: treat the whole response as a bank name
+        bank_name = response_text.strip()
+        confidence = 50
+
+    # Normalize aliases
+    bank_name = _BANK_ALIASES.get(bank_name, bank_name)
+
+    if bank_name in KNOWN_BANKS:
+        result = {"bank": bank_name, "confidence": confidence}
+    else:
+        print(f"AI returned unrecognized bank: {bank_name}")
+        result = {"bank": None, "confidence": 0}
+
     if return_confidence:
         return result
-    else:
-        # Backward compatible: return just bank name
-        return result.get("bank") if isinstance(result, dict) else result
+    return result.get("bank") if isinstance(result, dict) else result
+
+
+def _render_first_page(page, max_width=1200, resolution=150):
+    """Render a page to base64 PNG + extract a short text excerpt.
+
+    Returns (image_b64, text_excerpt).
+    """
+    pix = page.to_image(resolution=resolution)
+    pil_image = pix.original
+    if pil_image.width > max_width:
+        ratio = max_width / pil_image.width
+        pil_image = pil_image.resize((max_width, int(pil_image.height * ratio)), Image.LANCZOS)
+    buffered = io.BytesIO()
+    pil_image.save(buffered, format="PNG", optimize=True)
+    image_b64 = base64.b64encode(buffered.getvalue()).decode()
+    page_text = page.extract_text() or ""
+    text_excerpt = "\n".join(page_text.split("\n")[:12])
+    return image_b64, text_excerpt
 
 
 def _render_page_image(page, max_width=1200, resolution=150):

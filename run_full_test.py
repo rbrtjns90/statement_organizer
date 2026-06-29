@@ -15,7 +15,7 @@ from collections import Counter
 os.environ["LLAMA_CPP_LOG_LEVEL"] = "3"
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from bank_parsers.extraction_pipeline import ExtractionPipeline
+from bank_parsers.reconciliation_pipeline import ReconciliationPipeline
 from bank_statement_analyzer import BankStatementAnalyzer
 
 OUTFILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "test_results.txt")
@@ -23,7 +23,7 @@ OUTFILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "test_results
 
 def main():
     pdfs = sorted(glob.glob("Statements/**/*.pdf", recursive=True))
-    pipe = ExtractionPipeline()
+    pipe = ReconciliationPipeline()
     lines = []
     lines.append(f"Full-corpus test — {len(pdfs)} PDFs — local AI categorization")
     lines.append(f"Started: {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
@@ -45,16 +45,20 @@ def main():
             a.use_ai = True
             a.categorize_transactions(use_multiprocessing=False)
             s = a._last_categorization_stats
-            total_txns += r.count
-            total_ai += s.ai_calls
+            row_count = len(r.transactions)
+            total_txns += row_count
+            total_ai += s.ai_calls if s else 0
             cc = Counter(t["category"] for t in a.transactions)
             for c, n in cc.items():
                 agg_cats[c] += n
             elapsed = time.time() - pdf_t0
+            kw = s.keyword if s else 0
+            ai = s.ai if s else 0
+            default = s.default if s else 0
             lines.append(
                 f"{os.path.basename(path)[:39]:<40} {r.bank[:13]:<14} "
-                f"{r.confidence:>5.1f} {r.count:>4} {s.keyword:>3} {s.ai:>3} "
-                f"{s.default:>3} {elapsed:>5.1f}"
+                f"{r.confidence:>5.1f} {row_count:>4} {kw:>3} {ai:>3} "
+                f"{default:>3} {elapsed:>5.1f}"
             )
         except Exception as exc:
             elapsed = time.time() - pdf_t0
