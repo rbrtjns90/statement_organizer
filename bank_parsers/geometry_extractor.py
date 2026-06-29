@@ -527,12 +527,23 @@ def _detect_account_header(line_words: List[Dict[str, Any]]) -> Optional[str]:
     return None
 
 
-def extract_from_page(page: Any, profile: Optional[Profile] = None, page_num: int = 1) -> List[RawRow]:
-    """Extract RawRows from a single pdfplumber page using geometry."""
-    try:
-        words = page.extract_words()
-    except Exception:
-        return []
+def extract_from_page(
+    page: Any,
+    profile: Optional[Profile] = None,
+    page_num: int = 1,
+    words: Optional[List[Dict[str, Any]]] = None,
+) -> List[RawRow]:
+    """Extract RawRows from a single pdfplumber page using geometry.
+
+    If `words` is provided (pre-fetched, e.g. from the OCR bridge for image-only
+    pages), use those instead of calling page.extract_words(). This lets scanned
+    PDFs flow through the same geometry pipeline as native text-layer PDFs.
+    """
+    if words is None:
+        try:
+            words = page.extract_words()
+        except Exception:
+            return []
     lines = _group_words_into_lines(words)
 
     # Detect columns from ALL amount-like words on the page.
@@ -602,20 +613,37 @@ def extract_from_pdf(pdf_path: str, bank: Optional[str] = None) -> Tuple[List[Ra
     last_columns = ColumnPlan(amount_x1=None)
 
     with pdfplumber.open(pdf_path) as pdf:
+        # Detect once whether this PDF is image-only (no text layer). If so, OCR
+        # all pages up front via the OCR-geometry bridge so scanned statements
+        # flow through the same column-detection + line-parsing path as native
+        # text-layer PDFs.
+        ocr_pages_words = None
+        try:
+            first_page_text = pdf.pages[0].extract_text() or ""
+            if len(first_page_text.strip()) < 50:
+                from . import ocr_geometry_bridge
+
+                if ocr_geometry_bridge.is_available():
+                    ocr_pages_words = ocr_geometry_bridge.extract_words_from_pdf(pdf_path)
+        except Exception:
+            pass
+
         for i, page in enumerate(pdf.pages):
-            rows = extract_from_page(page, profile, page_num=i + 1)
+            # Use OCR words for this page if available (image-only PDF).
+            page_words = ocr_pages_words[i] if ocr_pages_words and i < len(ocr_pages_words) else None
+            rows = extract_from_page(page, profile, page_num=i + 1, words=page_words)
             if rows:
                 all_rows.extend(rows)
                 # Auto-detect profile if none matched and we found rows.
                 if profile is None:
                     profile = auto_profile(page, rows)
                 # remember the columns for provenance
-                words = []
-                try:
-                    words = page.extract_words()
-                except Exception:
-                    pass
-                aw = [w for w in words if _looks_like_amount(w["text"])]
+                if page_words is None:
+                    try:
+                        page_words = page.extract_words()
+                    except Exception:
+                        page_words = []
+                aw = [w for w in (page_words or []) if _looks_like_amount(w["text"])]
                 last_columns = detect_columns(aw, profile)
 
     return all_rows, profile, last_columns

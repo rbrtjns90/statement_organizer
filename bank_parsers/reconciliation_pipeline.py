@@ -77,21 +77,31 @@ class PipelineResult:
 # Helpers
 # ---------------------------------------------------------------------------
 def _raw_rows_to_dicts(rows: List[RawRow], bank: str) -> List[Dict[str, Any]]:
-    """Convert RawRow objects to the dict format the rest of the system uses."""
+    """Convert RawRow objects to the dict format the rest of the system uses.
+
+    Preserves running_balance and account (needed by the running-balance chain
+    reconciliation strategy for checking accounts).
+    """
     out = []
     for r in rows:
-        out.append(
-            {
-                "date": r.date,
-                "description": r.description,
-                "amount": r.amount,
-                "category": None,
-                "bank": bank,
-                "page": r.page,
-                "source": r.source,
-                "raw_data": r.raw_data,
-            }
-        )
+        d = {
+            "date": r.date,
+            "description": r.description,
+            "amount": r.amount,
+            "category": None,
+            "bank": bank,
+            "page": r.page,
+            "source": r.source,
+            "raw_data": r.raw_data,
+        }
+        # Preserve geometry-specific fields the reconciler needs.
+        if r.running_balance is not None:
+            d["running_balance"] = r.running_balance
+        if r.account is not None:
+            d["account"] = r.account
+        if r.line_top is not None:
+            d["line_top"] = r.line_top
+        out.append(d)
     return out
 
 
@@ -207,10 +217,31 @@ class ReconciliationPipeline:
 
         # --- Step 1: text + bank detection ---
         text = self._extract_text(pdf_path)
-        if not text.strip():
-            self._notify("⚠️ No text layer — falling back to AI vision extraction")
+        image_only = not text.strip()
+
+        # For image-only PDFs, try the OCR-geometry bridge FIRST (it's more
+        # reliable than AI vision and enables reconciliation via OCR'd totals).
+        # extract_from_pdf now OCRs internally when no text layer is present.
+        # Only if geometry returns nothing do we fall back to pure AI vision.
+        if image_only:
+            self._notify("📷 No text layer — attempting OCR-geometry extraction")
+            rows, used_profile, _ = extract_from_pdf(pdf_path, bank=bank)
+            if rows:
+                # Recover text from OCR for totals parsing + bank detection.
+                text = self._ocr_text(pdf_path) or ""
+                result.geometry_row_count = len(rows)
+                result.bank = (bank or self._detect_bank(text, pdf_path)) or "Unknown"
+                profile = used_profile or get_profile(result.bank)
+                result.profile_used = profile
+                transactions = _raw_rows_to_dicts(rows, result.bank)
+                self._notify(f"📐 OCR-geometry extracted {len(transactions)} rows")
+                return self._reconcile_and_finalize(pdf_path, result, transactions, text, profile)
+
+            # Geometry (incl. OCR) failed — last resort: AI vision.
+            self._notify("⚠️ OCR-geometry returned nothing — falling back to AI vision")
             return self._full_ai_fallback(pdf_path, result)
 
+        # Native text-layer path.
         if bank is None:
             bank = self._detect_bank(text, pdf_path)
         result.bank = bank or "Unknown"
@@ -223,6 +254,15 @@ class ReconciliationPipeline:
         result.geometry_row_count = len(rows)
         transactions = _raw_rows_to_dicts(rows, result.bank)
         self._notify(f"📐 Geometry extracted {len(transactions)} rows")
+        return self._reconcile_and_finalize(pdf_path, result, transactions, text, profile)
+
+    def _reconcile_and_finalize(
+        self, pdf_path, result, transactions, text, profile
+    ) -> PipelineResult:
+        """Run reconciliation + AI repair on a set of extracted transactions.
+
+        Factored out so both the native-text and OCR-bridge paths share it.
+        """
 
         # --- Step 3: reconcile ---
         stated = parse_stated_totals(text, profile)
@@ -330,3 +370,16 @@ class ReconciliationPipeline:
             return detect_bank(text, pdf_path)
         except Exception:
             return "Unknown"
+
+    def _ocr_text(self, pdf_path: str) -> str:
+        """Recover plain text from an image-only PDF via Vision OCR.
+
+        Used to parse stated totals (for reconciliation) when the geometry
+        path ran on OCR words. Returns "" if OCR is unavailable.
+        """
+        try:
+            from .vision_ocr import extract_text_from_pdf
+
+            return extract_text_from_pdf(pdf_path) or ""
+        except Exception:
+            return ""
