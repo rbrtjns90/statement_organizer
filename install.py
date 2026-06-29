@@ -147,8 +147,8 @@ class StatementOrganizerInstaller:
         print("📝 Creating Windows PowerShell scripts...")
         
         scripts = {
-            "pdf_field_mapper.ps1": "pdf_field_mapper_pyqt6.py",
-            "bank_statement_gui.ps1": "bank_statement_gui.py", 
+            "pdf_field_mapper.ps1": "pdf_field_mapper.py",
+            "bank_statement_gui.ps1": "bank_statement_gui.py",
             "final_schedule_c_filler.ps1": "final_schedule_c_filler.py"
         }
         
@@ -212,7 +212,7 @@ if errorlevel 1 (
         print("📝 Creating Unix bash scripts...")
         
         scripts = {
-            "pdf_field_mapper.sh": "pdf_field_mapper_pyqt6.py",
+            "pdf_field_mapper.sh": "pdf_field_mapper.py",
             "bank_statement_gui.sh": "bank_statement_gui.py",
             "final_schedule_c_filler.sh": "final_schedule_c_filler.py"
         }

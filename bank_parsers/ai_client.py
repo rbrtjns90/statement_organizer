@@ -33,6 +33,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import sys
 import threading
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Union
@@ -242,6 +243,65 @@ class _LocalBackend:
         self._chat_handler: Any = None
         self._lock = threading.Lock()
         self._load_error: Optional[str] = None
+        # When True, a missing model triggers the interactive download picker
+        # (run `python download_model.py` to set up explicitly). Default False so
+        # non-interactive/library use doesn't surprise the user with a multi-GB
+        # download; set True via settings or the download_model.py CLI.
+        self.auto_download = bool(settings.get("auto_download", False))
+
+    def _download_if_enabled(self) -> bool:
+        """Offer to download a model when none is present.
+
+        Interactive: asks the user (stdin). If auto_download is set and we're on
+        a TTY, launches the hardware-aware picker from model_catalog. Otherwise
+        prints a helpful message and returns False.
+        """
+        if not self.auto_download:
+            print(
+                "ℹ️  No local AI model found. To enable on-device AI (private, $0/call):\n"
+                "      python download_model.py\n"
+                "    This detects your hardware and recommends the best Gemma 4 model.\n"
+                "    Or set preferred_backend='openai' in config/ai_settings.json to use the API."
+            )
+            return False
+        try:
+            if not sys.stdin.isatty():
+                # Non-interactive: don't block. Print guidance.
+                print("ℹ️  No local model and not interactive — run 'python download_model.py' to set up.")
+                return False
+            from .model_catalog import detect_hardware, interactive_pick, model_url, mmproj_url
+
+            hw = detect_hardware()
+            rec = interactive_pick(hw, want_vision=True)
+            if rec is None:
+                return False
+            import urllib.request
+
+            os.makedirs(os.path.dirname(self.model_path) or "models", exist_ok=True)
+            print(f"⬇️  Downloading {rec.variant.label} {rec.quant.name} "
+                  f"({rec.quant.size_gb:.1f} GB)...")
+            urllib.request.urlretrieve(
+                model_url(rec.variant, rec.quant), self.model_path
+            )
+            # Update this backend's paths + settings.
+            import json as _json
+
+            self.mmproj_path = os.path.join(
+                os.path.dirname(self.model_path), rec.variant.mmproj_filename
+            )
+            urllib.request.urlretrieve(mmproj_url(rec.variant), self.mmproj_path)
+            # Persist the chosen paths.
+            self.settings["local_model_path"] = self.model_path
+            self.settings["local_mmproj_path"] = self.mmproj_path
+            self.settings["local_supports_vision"] = True
+            save_ai_settings(self.settings)
+            self.supports_vision = True
+            print(f"✅ Downloaded {rec.variant.label}. Continuing...")
+            return True
+        except Exception as exc:
+            print(f"⚠️ Model download failed: {exc}")
+            print("   Run 'python download_model.py' manually to set up a model.")
+            return False
 
     def _ensure_loaded(self) -> bool:
         """Lazily load the model on first use.
@@ -249,6 +309,11 @@ class _LocalBackend:
         For multimodal (vision) models like Gemma 4, llama-cpp-python needs a
         separate mmproj projector file wired in via a chat handler; the bare
         Llama() is text-only.
+
+        If the model file is absent, this will attempt to DOWNLOAD it
+        (the default model is ~5GB; the mmproj ~2GB). The download is gated by
+        `auto_download` so non-interactive use doesn't surprise the user with a
+        multi-gigabyte fetch.
         """
         if self._client is not None:
             return True
@@ -258,8 +323,12 @@ class _LocalBackend:
             self._load_error = "llama_cpp not installed"
             return False
         if not os.path.exists(self.model_path):
-            self._load_error = f"model not found: {self.model_path}"
-            return False
+            # Attempt auto-download if enabled. A fresh clone has no model; we
+            # fetch it from the configured Hugging Face URL rather than silently
+            # disabling local AI.
+            if not self._download_if_enabled():
+                self._load_error = f"model not found: {self.model_path}"
+                return False
         try:
             n_gpu_layers = self._detect_gpu_layers()
             self._client = Llama(

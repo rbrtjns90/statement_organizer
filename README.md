@@ -79,7 +79,15 @@ pip install -r requirements.txt
 - Windows: install [Tesseract](https://github.com/UB-Mannheim/tesseract)
 
 **Local AI model (optional, for on-device AI):**
-Download a multimodal GGUF (e.g. Gemma 4 E2B) into `models/`. See [AI Configuration](#ai-configuration).
+```bash
+python download_model.py
+```
+This detects your hardware (RAM, GPU/VRAM) and recommends the best Gemma 4 model variant (E2B, E4B, 12B, 26B-A4B, or 31B) and quantization that fits, then downloads it. You can also pick explicitly:
+```bash
+python download_model.py --list                          # show recommendations only
+python download_model.py --variant 12B --quant Q4_K_M    # download a specific model
+```
+Or set `preferred_backend: "openai"` in `config/ai_settings.json` to use the API instead. See [AI Configuration](#ai-configuration).
 
 ---
 
