@@ -152,8 +152,14 @@ _DATE_PATTERNS = [
     re.compile(r"^\d{1,2}-\d{1,2}$"),          # 07-24
     re.compile(r"^[A-Z][a-z]{2}\s*\d{1,2}$"),  # Jan 21 (single token)
 ]
-# A month-name token (Capital One uses "Jan 8" as TWO separate words).
-_MONTH_RE = re.compile(r"^[A-Z][a-z]{2}$")
+# Month-name token (Capital One uses "Jan 8" as TWO separate words). Restricted
+# to ACTUAL month abbreviations — the previous r"^[A-Z][a-z]{2}$" matched any
+# 3-letter capitalized word (e.g. "New", "Due"), which caused "New Balance" to
+# be parsed as a date and leak the new-balance total in as a fake transaction.
+_MONTH_NAMES = {
+    "jan", "feb", "mar", "apr", "may", "jun",
+    "jul", "aug", "sep", "sept", "oct", "nov", "dec",
+}
 _DAY_RE = re.compile(r"^\d{1,2}$")
 
 
@@ -166,8 +172,10 @@ def _is_date_token(text: str) -> bool:
     t = text.strip()
     if _looks_like_date(t):
         return True
-    # standalone month abbreviations and bare day numbers (Capital One style)
-    if _MONTH_RE.match(t):
+    # standalone month abbreviations (Capital One style "Jan 8") and bare day
+    # numbers. Month matching is restricted to real month names so words like
+    # "New"/"Due"/"Net" aren't misread as dates.
+    if t.lower() in _MONTH_NAMES:
         return True
     if _DAY_RE.match(t):
         return True
@@ -296,9 +304,14 @@ def parse_line(
     bank_type = getattr(profile, "bank_type", "credit") if profile else "credit"
     if bank_type == "credit":
         desc_preview = " ".join(w["text"] for w in sorted(line_words, key=lambda x: x["x0"])).upper()
+        # Payment markers must be SPECIFIC phrases (whole-word-ish), not bare
+        # substrings. A bare "PAYMENT" matches ACH descriptors like "DES:PAYMENT"
+        # (BofA checking) which are NOT card payments — they're incoming deposits.
         payment_markers = (
-            "PAYMENT", "PYMT", "THANK YOU", "AUTOPAY", "AUTO-PMT", "AUTO PMT",
-            "REFUND", "CREDIT ADJUSTMENT", "STATEMENT CREDIT", "RETURN",
+            "PAYMENT THANK YOU", "PAYMENT RECEIVED", "PYMT ", "AUTOPAY",
+            "AUTO-PMT", "AUTO PMT", "CAPITAL ONE MOBILE PYMT",
+            "REFUND", "CREDIT ADJUSTMENT", "STATEMENT CREDIT",
+            "NFO PAYMENT", "ONLINE PAYMENT FROM",
         )
         is_payment = any(m in desc_preview for m in payment_markers)
         if is_payment and amount > 0:
@@ -398,6 +411,24 @@ def parse_line(
     description = re.sub(r"\s+", " ", description)
 
     if not description:
+        return None
+
+    # Guard: a line with MULTIPLE amount tokens in the amount column is a summary
+    # table row (e.g. BofA "Daily Balance Summary": "02/01 13,865.01 02/12 ..."),
+    # not a transaction. Real transaction lines have exactly one amount.
+    amount_in_col = sum(
+        1 for w in line_words
+        if _looks_like_amount(w["text"]) and columns.column_for(w["x1"]) == "amount"
+    )
+    if amount_in_col > 1:
+        return None
+
+    # Guard: a line whose "description" is only dates and amounts (no merchant
+    # text) is a summary/balance row, not a transaction.
+    if description and not any(
+        not _is_date_token(w["text"]) and not _looks_like_amount(w["text"])
+        for w in desc_words
+    ):
         return None
 
     # Bug A fix: a real transaction line on these statements ALWAYS has a date.

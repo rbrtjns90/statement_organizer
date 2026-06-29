@@ -57,6 +57,8 @@ class StatedTotals:
     new_balance: Optional[float] = None
     ending_balance: Optional[float] = None
     beginning_balance: Optional[float] = None  # checking accounts ("Beginning Balance")
+    deposits: Optional[float] = None        # "Total deposits and other credits"
+    withdrawals: Optional[float] = None     # "Total withdrawals and other debits"
     raw_lines: List[str] = field(default_factory=list)  # for debugging
 
 
@@ -178,6 +180,10 @@ def parse_stated_totals(text: str, profile: Optional[Profile] = None) -> StatedT
         "new balance": "new_balance",
         "ending balance": "ending_balance",
         "beginning balance": "beginning_balance",
+        "total deposits and other credits": "deposits",
+        "total deposits": "deposits",
+        "total withdrawals and other debits": "withdrawals",
+        "total withdrawals": "withdrawals",
     }
     for label, field_name in universal.items():
         field_map.setdefault(label, field_name)
@@ -185,7 +191,8 @@ def parse_stated_totals(text: str, profile: Optional[Profile] = None) -> StatedT
     # Some labels are ambiguous ("new balance" appears in headers too). We prefer
     # the MOST SPECIFIC label first, so sort by length descending.
     valid_fields = {"charges", "fees", "interest", "previous_balance",
-                    "new_balance", "ending_balance", "beginning_balance"}
+                    "new_balance", "ending_balance", "beginning_balance",
+                    "deposits", "withdrawals"}
     for label in sorted(field_map.keys(), key=len, reverse=True):
         field_name = field_map[label]
         # Normalize: only valid attribute names; skip malformed mappings.
@@ -359,6 +366,37 @@ def reconcile(
             check_type="charges_total",
             confidence=95.0 if reconciled else 40.0,
             notes=notes,
+            stated=stated,
+        )
+
+    # Strategy 1b: deposits + withdrawals totals (checking accounts).
+    # A checking statement declares "Total deposits and other credits" and
+    # "Total withdrawals and other debits". sum(credits) must match deposits;
+    # abs(sum(debits)) must match withdrawals. This is the cleanest check for
+    # checking accounts that don't expose a charges total.
+    if stated.deposits is not None or stated.withdrawals is not None:
+        # deposits = money in (positive amounts); withdrawals = money out (|neg|).
+        actual_deposits = _sum_transactions(rows, "charges")
+        actual_withdrawals = abs(_sum_transactions(rows, "credits"))
+        # Stated totals may be signed ("-$15,800.31"); compare absolute values.
+        stated_dep = abs(stated.deposits) if stated.deposits is not None else None
+        stated_wd = abs(stated.withdrawals) if stated.withdrawals is not None else None
+        discrepancies = []
+        if stated_dep is not None:
+            discrepancies.append(round(actual_deposits - stated_dep, 2))
+        if stated_wd is not None:
+            discrepancies.append(round(actual_withdrawals - stated_wd, 2))
+        total_disc = round(sum(abs(d) for d in discrepancies), 2)
+        reconciled = total_disc <= tolerance
+        return ReconciliationResult(
+            reconciled=reconciled,
+            discrepancy=total_disc,
+            expected_total=stated_dep,
+            actual_total=actual_deposits,
+            check_type="deposits_withdrawals",
+            confidence=95.0 if reconciled else 40.0,
+            notes=[f"deposits: actual={actual_deposits:.2f} stated={stated_dep}; "
+                   f"withdrawals: actual={actual_withdrawals:.2f} stated={stated_wd}"],
             stated=stated,
         )
 
