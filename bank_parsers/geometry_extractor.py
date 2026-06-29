@@ -248,17 +248,19 @@ def detect_columns(
     if len(significant) == 0:
         return ColumnPlan(amount_x1=None, method="none")
 
-    # Multiple columns: rightmost is the running balance, second-rightmost is
-    # the transaction amount. (Verified on Navy Federal: 472 = amount, 594 = balance.)
-    significant.sort(key=lambda c: c[0])
-    if len(significant) >= 2:
-        return ColumnPlan(
-            amount_x1=significant[-2][0],
-            balance_x1=significant[-1][0],
-            method="multi-col",
-        )
-    # Only fell through because of edge rounding; treat the lone cluster as amount.
-    return ColumnPlan(amount_x1=significant[0][0], method="mode")
+    # Multiple significant clusters. The two MOST POPULOUS are the amount and
+    # balance columns (every transaction has both); smaller clusters are noise
+    # (fragmented credit amounts, summary figures). Pick the two highest-count
+    # clusters, then assign by position: rightmost = balance, leftmost = amount.
+    # (Picking by count rather than pure position is more robust to OCR
+    # fragmentation — Tesseract splits some amounts into extra clusters.)
+    significant.sort(key=lambda c: c[1], reverse=True)  # by count desc
+    top_two = sorted(significant[:2], key=lambda c: c[0])  # back to left->right
+    return ColumnPlan(
+        amount_x1=top_two[0][0],
+        balance_x1=top_two[1][0],
+        method="multi-col",
+    )
 
 
 # ---------------------------------------------------------------------------
