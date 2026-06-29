@@ -1,1002 +1,314 @@
 # Bank Statement Analyzer & Schedule C Generator
 
-A comprehensive Python application that extracts transactions from bank statement PDFs, categorizes business expenses, and generates filled IRS Schedule C tax forms automatically. Features a modular parser system supporting multiple major banks with intelligent transaction detection and AI-powered categorization.
+A Python application that extracts transactions from bank statement PDFs, categorizes business expenses, and generates filled IRS Schedule C tax forms. Built on a **correctness-first architecture** that verifies every extraction against the statement's own totals — and falls back to AI (local model or OpenAI) only when deterministic extraction can't be verified.
+
+The system handles **text-layer PDFs** (native digital statements) and **image-only PDFs** (scanned statements, via OCR), from **known banks** (with layout profiles) and **unknown banks** (via AI-assisted profile generation).
+
+---
 
 ## 🚀 Features
 
-### 🏦 Multi-Bank Support
-- **Navy Federal Credit Union**: Both checking/savings (MM-DD format) and credit card (MM/DD/YY format) statements
-- **Capital One**: Credit card statements with transaction/post date format
-- **Citibank**: Complex multi-line transaction formats with orphaned amount matching
-- **Chase**: Standard and no-date transaction patterns with PayPal support
-- **Bank of America**: Traditional bank statement formats
-- **Generic Parser**: AI-powered fallback parser using K-means clustering for unknown statement formats
-- **Automatic Detection**: Intelligent bank identification from PDF content with fallback support
+### ✅ Correctness-first extraction
+- **Reconciliation-gated**: every extraction is checked against the statement's self-declared totals (Previous/New Balance, Total Charges, deposits/withdrawals, or per-row running balances). If the sum doesn't match, the extraction is flagged — never silently wrong.
+- **Four reconciliation strategies** cover every statement type:
+  - `charges_total` — credit cards (Capital One, Citi, NFCU Visa)
+  - `balance_equation` — `PreviousBalance + Charges − Payments + Interest + Fees = NewBalance`
+  - `running_balance_chain` — checking accounts with per-row balances (Navy Federal)
+  - `deposits_withdrawals` — checking accounts with totals (Bank of America)
+- **Geometry extraction**: transaction amounts right-align at fixed x-coordinates per bank. The extractor clusters word positions to detect columns — far more reliable than line-based regex.
+- **Honest evaluation**: the `eval/` harness measures real reconciliation rates against statement totals, not self-referential "accuracy."
 
-### 💡 Smart Processing
-- **PDF Transaction Extraction**: Automatically extract transactions from bank statement PDFs
-- **Modular Parser System**: Plugin-based architecture for easy bank format extension
-- **Machine Learning Parser**: K-means clustering algorithm automatically detects transaction patterns in unknown statement formats
-- **AI-Powered Categorization**: Optional OpenAI integration for intelligent expense categorization
-- **Transaction Management**: Delete, edit, and manage transactions with real-time updates
-- **Multiprocessing Support**: Parallel processing for faster PDF analysis
+### 🤖 AI on demand ("use the model if you have to")
+- **Unified AI client** (`bank_parsers/ai_client.py`): one interface, local model first → OpenAI fallback. Statement content stays on-machine when a local model is installed.
+- **AI as repair, not primary**: when reconciliation fails, the AI gets a *targeted* task ("find the missing $X") rather than open-ended re-extraction.
+- **AI-assisted profile generation**: for unknown banks, the vision model identifies column roles + totals labels, and geometry measures exact coordinates — bootstrapping a layout profile on the fly.
+- **Local-first**: runs on a local Gemma 4 GGUF model (private, $0/call). OpenAI (`gpt-4o-mini`) is the fallback.
 
-### 🤖 AI-Fallback Architecture (works on any future PDF)
-The system extracts and categorizes transactions from **any** bank statement —
-known or never-seen-before — using a deterministic-first, AI-on-demand strategy:
+### 🏦 Multi-bank support
+- **Known banks** (layout profiles): Capital One, Bank of America, Chase, Citibank, Navy Federal (both checking and Visa layouts)
+- **Unknown banks**: auto-detected column geometry + AI-generated profiles
+- **Image-only PDFs**: OCR-geometry bridge (macOS Vision or cross-platform Tesseract)
 
-1. **Confidence-gated extraction** (`bank_parsers/extraction_pipeline.py`): runs
-   the existing deterministic parsers (regex per-bank → ML → generic) and routes
-   **all** results through the validation pipeline (dedup + quality scoring). It
-   computes a document-confidence score and escalates to AI extraction **only
-   when confidence is low** (configurable threshold, default 50/100) — "use the
-   AI model if you have to".
-2. **Unified AI client** (`bank_parsers/ai_client.py`): one interface for all AI
-   calls (extraction + categorization) with automatic **local → OpenAI fallback**.
-   When a local GGUF model is installed, statement content never leaves the
-   machine; OpenAI is contacted only when the local model is missing or fails.
-3. **Description normalization** (`bank_parsers/description_normalizer.py`): strips
-   card prefixes, reference numbers, and glued state codes from raw descriptions
-   before matching — the single biggest categorization-accuracy improvement.
-4. **Categorizer** (`bank_parsers/categorizer.py`): cascade of learned
-   categories → normalized keyword match → AI (with fuzzy category acceptance),
-   so the system no longer discards AI results over trivial formatting differences.
-5. **Learning loop** (`bank_parsers/format_memory.py`): remembers layouts the AI
-   has successfully handled, so recurring unknown-bank statements skip straight
-   to AI on future runs — the system gets cheaper over time.
+### 📊 Business tools
+- **Schedule C generation**: filled IRS Schedule C PDFs with field mappings
+- **Categorization**: learned categories → normalized keyword match → AI, with fuzzy acceptance
+- **Description normalization**: strips card prefixes, reference numbers, and glued state codes before matching
+- **Excel/JSON export**: transaction reports with category summaries
 
-Backend and threshold configuration lives in `config/ai_settings.json`. To enable
-local AI, download a multimodal GGUF (e.g. Qwen2-VL-7B) into `models/` and set
-`local_supports_vision: true`; to enable OpenAI, place your key in
-`config/openai.txt`. With neither present, the system runs deterministically only
-and AI escalation is skipped gracefully.
+### 🖥️ GUI
+- PyQt6 interface with real-time status, bank detection feedback, and the active AI backend shown
+- Visual PDF field mapper for Schedule C form configuration
 
-### 📊 Business Tools
-- **Schedule C Generation**: Generate filled IRS Schedule C PDFs with correct field mappings
-- **Category Management**: Configurable business expense categories with learning capabilities
-- **Excel Export**: Detailed transaction reports with category summaries
-- **Search & Filter**: Advanced transaction search and filtering capabilities
-
-### 🖥️ User Interface
-- **Interactive GUI**: PyQt6-based graphical interface for easy use
-- **Visual Field Mapper**: Interactive PyQt6 tool to create and modify PDF field mappings
-- **Real-time Status**: Live processing updates and bank detection feedback
-- **Context Menus**: Right-click transaction management and bulk operations
-
+---
 
 ## 📋 Table of Contents
+- [Installation](#-installation)
+- [Quick Start](#-quick-start)
+- [How It Works](#-how-it-works-the-correctness-first-architecture)
+- [Configuration](#-configuration)
+- [Evaluation](#-evaluation)
+- [Project Structure](#-project-structure)
+- [Troubleshooting](#-troubleshooting)
 
-- [Installation](#installation)
-- [Quick Start](#quick-start)
-- [Core Components](#core-components)
-- [Usage Guide](#usage-guide)
-- [Configuration](#configuration)
-- [Advanced Features](#advanced-features)
-- [Troubleshooting](#troubleshooting)
+---
 
 ## 🛠️ Installation
 
-### Automated Installation (Recommended)
-
-The easiest way to install Statement Organizer is using the automated installer:
-
-1. **Download the project**:
-   ```bash
-   git clone <repository-url>
-   cd statement_organizer
-   ```
-
-2. **Run the installer**:
-   ```bash
-   python3 install.py
-   ```
-
-The installer will:
-- ✅ Detect your operating system (Windows, macOS, Linux, BSD)
-- ✅ Check for Python 3.12+ (download if needed)
-- ✅ Install all required dependencies automatically
-- ✅ Create executable scripts for easy application launching
-- ✅ Set up the config directory structure
-
-### Manual Installation
-
-If you prefer manual installation:
-
-1. **Prerequisites**:
-   - Python 3.12+
-   - Virtual environment (recommended)
-
-2. **Setup**:
-   ```bash
-   git clone <repository-url>
-   cd statement_organizer
-   python3 -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   pip install -r requirements.txt
-   ```
-
-### Running Applications
-
-After installation, use the generated scripts:
-
-**Windows:**
-```cmd
-bank_statement_gui.bat          # Main GUI application
-pdf_field_mapper.bat            # PDF field mapping tool
-final_schedule_c_filler.bat     # Schedule C PDF processor
-```
-
-**Unix (Linux/macOS/BSD):**
+### Automated (recommended)
 ```bash
-./bank_statement_gui.sh         # Main GUI application
-./pdf_field_mapper.sh           # PDF field mapping tool
-./final_schedule_c_filler.sh    # Schedule C PDF processor
+git clone <repository-url>
+cd statement_organizer
+python3 install.py
+```
+The installer detects your OS, checks Python 3.12+, installs dependencies, and creates launcher scripts.
+
+### Manual
+```bash
+git clone <repository-url>
+cd statement_organizer
+python3 -m venv venv
+source venv/bin/activate   # Windows: venv\Scripts\activate
+pip install -r requirements.txt
 ```
 
+### Optional system dependencies
 
+**OCR (for scanned/image-only PDFs):**
+- macOS: Vision framework is built-in (no install needed)
+- Linux: `sudo apt install tesseract-ocr`
+- Windows: install [Tesseract](https://github.com/UB-Mannheim/tesseract)
+
+**Local AI model (optional, for on-device AI):**
+Download a multimodal GGUF (e.g. Gemma 4 E2B) into `models/`. See [AI Configuration](#ai-configuration).
+
+---
 
 ## 🚀 Quick Start
 
-### Method 1: GUI Interface (Recommended)
-
-**Windows:**
-```cmd
+### GUI
+```bash
+# Unix
+./bank_statement_gui.sh
+# Windows
 bank_statement_gui.bat
 ```
+1. Click **Add PDFs** to load statements (any supported bank, auto-detected)
+2. Optionally enable **AI Categorization**
+3. Click **Process PDFs** — watch the status bar for bank detection + reconciliation results
+4. Review/edit transactions, then **Export** to Excel or generate a Schedule C PDF
 
-**Unix (Linux/macOS/BSD):**
-```bash
-./bank_statement_gui.sh
-```
-
-1. **Load Bank Statements**: Click "Add PDFs" to select your bank statement files
-   - Supports: Navy Federal, Capital One, Citibank, Chase, Bank of America
-   - Automatically detects bank format from PDF content
-   - Can process multiple banks simultaneously
-
-2. **Configure Categories**: Choose your business categories file (or use default)
-   - Optional: Enable AI categorization for intelligent expense classification
-
-3. **Process Transactions**: Click "Process PDFs" to analyze transactions
-   - Real-time status updates show bank detection and extraction progress
-   - Multiprocessing for faster analysis of multiple files
-
-4. **Manage Transactions**: Review and manage extracted transactions
-   - Edit categories with dropdown menus
-   - Delete unwanted transactions with right-click or delete button
-   - Search and filter transactions by description
-
-5. **Export Results**: Generate reports and tax forms
-   - Export to Excel with category summaries
-   - Generate filled Schedule C PDF forms
-
-### Method 2: Command Line
-
+### Command line
 ```bash
 source venv/bin/activate
-python final_schedule_c_filler.py
+python final_schedule_c_filler.py   # processes Statements/*.pdf → schedule_c_final_filled.pdf
 ```
 
-This will:
-- Process all PDFs in the `Statements/` folder
-- Categorize transactions automatically
-- Generate `schedule_c_final_filled.pdf`
-
-## 📁 Project Structure
-
-```
-statement_organizer/
-├── bank_parsers/           # Core parser implementations
-│   ├── base_parser.py     # Base parser interface
-│   ├── navy_federal.py    # Navy Federal parser
-│   ├── capital_one.py     # Capital One parser
-│   ├── citibank.py        # Citibank parser
-│   ├── chase.py           # Chase parser
-│   ├── bank_of_america.py # Bank of America parser
-│   ├── generic_parser.py  # AI-powered generic parser
-│   └── ml_parser.py       # ML-based parser (99.7% accuracy)
-├── ml_models/             # Trained ML models
-├── config/                # Configuration files
-├── Statements/            # Input PDF statements
-├── utils/                 # Development and analysis tools
-├── bank_statement_analyzer.py  # Core analyzer engine
-├── bank_statement_gui.py       # GUI application
-└── requirements.txt       # Dependencies
+### Single PDF via the analyzer
+```bash
+python bank_statement_analyzer.py path/to/statement.pdf -o output.xlsx
 ```
 
-## 🧩 Core Components
+---
 
-### 1. Modular Bank Parser System (`bank_parsers/`)
-Plugin-based architecture for parsing different bank statement formats.
+## 🧠 How It Works: the correctness-first architecture
 
-**Key Features:**
-- **Auto-Detection**: Automatically identifies bank format from PDF content
-- **Extensible Design**: Easy to add new bank parsers by implementing the interface
-- **Standardized Output**: All parsers return consistent transaction format
-- **Fallback System**: Uses generic parser if bank not recognized
+### The core insight
+A bank statement is a **self-balancing document** — it states its own totals. If `sum(extracted_transactions) ≠ stated_total`, the extraction is *provably wrong*, and no AI judgment is needed to detect it. This reconciliation is the correctness gate.
 
-**Supported Banks:**
-- `navy_federal.py`: Navy Federal Credit Union (checking & credit card formats)
-- `capital_one.py`: Capital One credit card statements
-- `citibank.py`: Citibank statements with complex multi-line transactions
-- `chase.py`: Chase statements including PayPal and no-date transactions
-- `bank_of_america.py`: Bank of America traditional formats
-
-### 2. Bank Statement Analyzer (`bank_statement_analyzer.py`)
-The core engine that orchestrates transaction extraction and categorization.
-
-**Key Features:**
-- PDF text extraction using pdfplumber
-- Modular parser integration with automatic bank detection
-- Multiprocessing support for parallel PDF processing
-- Pattern-based and AI-powered categorization
-- Schedule C data generation with field mapping
-
-### 3. GUI Interface (`bank_statement_gui.py`)
-PyQt6-based graphical interface for comprehensive transaction management.
-
-**Features:**
-- Multi-bank PDF loading with automatic detection
-- Real-time processing progress with bank identification
-- Interactive transaction review and editing
-- Transaction deletion with confirmation dialogs
-- Category management with learning capabilities
-- Search and filter functionality
-- Export capabilities (Excel and Schedule C PDF)
-- **AI-Powered Categorization** (optional)
-
-#### AI Categorization Checkbox
-
-The GUI includes an intelligent **"Use AI Categorization"** checkbox that enhances transaction categorization accuracy:
-
-**🤖 How It Works:**
-- **Auto-Detection**: Checkbox automatically enables if `openai.txt` file exists and OpenAI package is installed
-- **Smart Processing**: Uses GPT-3.5-turbo to categorize ambiguous transactions
-- **Fallback System**: If AI fails, automatically falls back to pattern matching
-- **Real-Time Feedback**: Shows AI categorization progress in the status display area
-
-**📋 Categorization Priority:**
-1. **Learned Categories** (from previous manual corrections)
-2. **AI Categorization** (if enabled and available)
-3. **Pattern Matching** (keyword-based)
-4. **Default**: "Other Business Expenses"
-
-**⚙️ Setup Requirements:**
-- Install OpenAI package: `pip install openai`
-- Create `openai.txt` file with your API key
-- Checkbox will auto-enable when requirements are met
-
-**💡 Benefits:**
-- **Higher Accuracy**: AI understands context better than simple keyword matching
-- **Learns Context**: Considers transaction amounts, descriptions, and business categories
-- **Cost Effective**: Uses GPT-3.5-turbo for affordable processing
-- **Transparent**: Status area shows which transactions are AI-categorized
-- **Optional**: Can be disabled to use only pattern matching
-
-### 3. Schedule C Processor (`schedule_c_processor.py`)
-
-**Purpose**: Alternative PDF processing tool
-
-**Key Features:**
-- PDF form field analysis
-- Direct form filling capabilities
-- Schedule C specific processing
-- Configurable field mappings export/import
-
-### 4. Final Schedule C Filler (`final_schedule_c_filler.py`)
-Generates filled IRS Schedule C PDFs with accurate field mappings.
-
-**Capabilities:**
-- JSON-based field mapping configuration
-- Automatic PDF form filling
-- Multiple mapping strategies
-- Error handling and validation
-
-### 5. PDF Field Mapper (`pdf_field_mapper.py`)
-Interactive PyQt6 tool for creating and modifying PDF field mappings.
-
-**Features:**
-- Visual PDF display with clickable field overlays
-- Interactive field selection and mapping
-- Business category dropdown selection
-- Tree view of current mappings
-- Save/load JSON mapping configurations
-- Page navigation for multi-page PDFs
-- Real-time field highlighting
-
-## 📖 Usage Guide
-
-### Processing Bank Statements
-
-#### Using the GUI
-
-1. **Launch the application**:
-   ```bash
-   python bank_statement_gui.py
-   ```
-
-2. **Load Bank Statement PDFs**:
-   - Click "Add PDFs" or drag-and-drop files
-   - Select multiple bank statement PDFs from any supported bank
-   - **Supported Banks**: Navy Federal, Capital One, Citibank, Chase, Bank of America
-   - Application automatically detects bank format from PDF content
-
-3. **Configure Categories & AI**:
-   - Use default `business_categories.json` or load custom configuration
-   - **Optional**: Enable "Use AI Categorization" checkbox for intelligent expense classification
-   - Categories determine how expenses are classified for tax purposes
-
-4. **Process Transactions**:
-   - Click "Process PDFs" to start extraction
-   - **Real-time Status**: Monitor bank detection and extraction progress
-   - **Multiprocessing**: Multiple PDFs processed in parallel for speed
-   - Review extracted transactions in the interactive table
-
-5. **Manage Transactions**:
-   - **Edit Categories**: Use dropdown menus to change transaction categories
-   - **Delete Transactions**: Right-click or use delete button to remove unwanted entries
-   - **Search & Filter**: Find specific transactions by description
-   - **Bulk Operations**: Apply categories to multiple similar transactions
-
-6. **Export Results**:
-   - **Excel Export**: Generate detailed transaction reports with category summaries
-   - **Schedule C PDF**: Create filled IRS tax forms with expense totals
-   - **Category Learning**: System remembers manual corrections for future processing
-
-#### Using Command Line
-
-1. **Place PDFs in Statements folder**:
-   ```bash
-   mkdir -p Statements
-   cp your_bank_statements.pdf Statements/
-   ```
-
-2. **Run the processor**:
-   ```bash
-   python final_schedule_c_filler.py
-   ```
-
-3. **Check output**:
-   - Generated PDF: `schedule_c_final_filled.pdf`
-   - Processing logs show categorization details
-
-### Creating Custom Field Mappings
-
-Use the interactive field mapper to create custom PDF mappings:
-
-1. **Launch the field mapper**:
-   ```bash
-   python pdf_field_mapper.py
-   ```
-
-2. **Open your PDF form**:
-   - Click "Open PDF"
-   - Select the PDF form you want to map
-   - Navigate through pages if needed
-
-3. **Map fields visually**:
-   - Red overlays show available form fields
-   - Click on a field to select it
-   - Choose expense category from dropdown
-   - Click "Map Selected Field"
-
-4. **Save configuration**:
-   - Click "Save Mapping"
-   - Export as JSON file
-   - Use with Schedule C processor
-
-## 🎯 Visual Field Mapping
-
-Use the interactive GUI to create accurate PDF field mappings:
-
-1. **Launch the field mapper**:
-   ```bash
-   python pdf_field_mapper.py
-   ```
-
-2. **Open your PDF form**:
-   - Click "Open PDF"
-   - Select the PDF form you want to map
-   - Navigate through pages if needed
-
-3. **Map fields visually**:
-   - Red overlays show available form fields
-   - Click on a field to select it
-   - Choose expense category from dropdown
-   - Click "Map Selected Field"
-
-4. **Save configuration**:
-   - Click "Save Mapping"
-   - Export as JSON file
-   - Use with Schedule C processor
-
-## 🏗️ Bank Parser Architecture
-
-The modular parser system enables support for multiple bank statement formats through a plugin-based architecture:
-
-### Parser Interface
-
-All bank parsers implement the `BankStatementParser` interface:
-
-```python
-class BankStatementParser:
-    def can_parse(self, text: str) -> bool:
-        """Detect if this parser can handle the PDF content"""
-        
-    def extract_transactions(self, text: str) -> List[Dict]:
-        """Extract transactions with bank-specific logic"""
-        
-    def get_account_info(self, text: str) -> Dict:
-        """Extract account metadata (number, dates, etc.)"""
+### The pipeline
+```
+PDF
+ │
+ ├─ Text-layer? ──── yes ──→ geometry extraction (word x-coordinates)
+ │                              │
+ ├─ Image-only? ──── yes ──→ OCR (Vision/Tesseract) with bounding boxes → geometry
+ │                              │
+ │                              ▼
+ │                    Layout profile (known bank) or AI-generated (unknown bank)
+ │                              │
+ │                              ▼
+ │                    Transaction extraction (date | description | amount)
+ │                              │
+ │                              ▼
+ │                    Reconciliation (sum vs stated totals)
+ │                       ├─ reconciled ✓ → done (provably correct, no AI)
+ │                       └─ mismatch ✗  → targeted AI repair → re-reconcile
 ```
 
-### Automatic Bank Detection
+### Modules
 
-The system automatically identifies bank formats using unique identifiers:
+| Module | Role |
+|--------|------|
+| `geometry_extractor.py` | Reconstructs transaction lines from word x/y coordinates; detects amount/date/balance columns |
+| `layout_profiles.py` | Declarative per-bank layout knowledge (column positions, totals labels); multi-layout support (e.g. NFCU checking vs Visa) |
+| `reconciler.py` | The correctness oracle — 4 strategies (charges, balance equation, running-balance chain, deposits/withdrawals) |
+| `reconciliation_pipeline.py` | Orchestrates: geometry → reconcile → targeted AI repair |
+| `ocr_geometry_bridge.py` | OCR with bounding boxes (macOS Vision or Tesseract) → word dicts the geometry extractor consumes |
+| `ai_client.py` | Unified local (Gemma 4) → OpenAI fallback client |
+| `ai_profile_generator.py` | Hybrid profile generation for unknown banks (AI roles + geometry coordinates) |
+| `categorizer.py` | Learned → keyword → AI categorization with fuzzy acceptance |
+| `description_normalizer.py` | Strips bank noise from raw descriptions before matching |
+| `transaction_filters.py` | Universal summary-row + dedup filtering (fixes junk-row leaks) |
+| `format_memory.py` | Remembers layouts so recurring unknown banks skip AI on future runs |
+| `eval/run_eval.py` | Honest ground-truth evaluation harness |
+| `ai_detector.py` | AI bank detection + vision extraction (legacy/repair path) |
+| `extraction_pipeline.py` | The earlier confidence-gated pipeline (still used by the legacy GUI path) |
 
-- **Navy Federal**: "Navy Federal", "NFCU", "Navy Federal Credit Union"
-- **Capital One**: "Capital One", "capitalone.com", "CAPITAL ONE"
-- **Citibank**: "Citibank", "CITI", "citicards.com"
-- **Chase**: "Chase", "JPMorgan Chase", "CHASE CARD SERVICES"
-- **Bank of America**: "Bank of America", "BofA", "bankofamerica.com"
-
-### Parser Registry
-
-The `BankParserRegistry` manages parser detection and priority:
-
-```python
-# Priority order (highest to lowest)
-1. Navy Federal Credit Union
-2. Capital One  
-3. Citibank
-4. Chase
-5. Bank of America
-6. Generic fallback parser
-```
-
-### Adding New Banks
-
-To add support for a new bank:
-
-1. **Create parser file**: `bank_parsers/new_bank.py`
-2. **Implement interface**: Extend `BankStatementParser`
-3. **Add detection logic**: Unique bank identifiers
-4. **Register parser**: Add to `bank_parsers/registry.py`
-5. **Test thoroughly**: Create test cases for various statement formats
-
-### Transaction Format Standards
-
-All parsers return transactions in this standardized format:
-
-```python
-{
-    'date': datetime.date,
-    'description': str,
-    'amount': float,
-    'category': str,
-    'transaction_type': str  # 'debit' or 'credit'
-}
-```
-
-## 🎯 Configuration Management
-
-The system uses JSON configuration files stored in the `config/` folder:
-
-1. **Business Categories** (`config/business_categories.json`):
-   - Define expense categorization rules
-   - Add keywords for automatic matching
-   - Customize categories for your business
-
-2. **Field Mappings** (`config/schedule_c_field_mappings.json`):
-   - Maps business categories to PDF form fields
-   - Uses precise field patterns (f1_35, f1_27, etc.)
-   - Ensures accurate form filling
-
-3. **Schedule C Form** (`config/schedule_c.pdf`):
-   - Official IRS Schedule C form
-   - Used as template for filling
-   - Must be a fillable PDF form
+---
 
 ## ⚙️ Configuration
 
-### Business Categories (`config/business_categories.json`)
-
-Define how transactions are categorized:
-
+### AI configuration (`config/ai_settings.json`)
 ```json
 {
-  "Meals & Entertainment": [
-    "restaurant",
-    "cafe",
-    "doordash"
-  ],
-  "Software & Subscriptions": [
-    "github",
-    "aws",
-    "google cloud"
-  ],
-  "Marketing": [
-    "facebook ads",
-    "google ads"
-  ]
+  "preferred_backend": "auto",          // "local" | "openai" | "auto"
+  "local_supports_vision": true,        // true once a vision GGUF + mmproj are installed
+  "openai_model": "gpt-4o-mini",
+  "extraction_confidence_threshold": 50
 }
 ```
+- **`preferred_backend: "auto"`** (default): tries local model first, falls back to OpenAI
+- **`preferred_backend: "local"`**: local only (private, $0); OpenAI never contacted
+- **`preferred_backend: "openai"`**: OpenAI only
 
-**Structure:**
-- **Keys**: Business expense categories
-- **Values**: Arrays of keywords/patterns to match
+### AI configuration (continued)
+- **Local model**: place a multimodal GGUF (e.g. `gemma-4-e2b-it-Q8_0.gguf`) + its mmproj file in `models/`. Set `local_supports_vision: true`.
+- **OpenAI**: place your API key in `config/openai.txt`. The key is gitignored.
+- **Neither present**: the system runs deterministically only; AI escalation is skipped gracefully.
 
-### PDF Field Mappings (`config/schedule_c_field_mappings.json`)
+### Categories (`config/business_categories.json`)
+Maps each category to a list of keyword phrases. Edit this to tune categorization — the eval harness (`eval/category_eval.py`) flags suspect categorizations to guide tuning.
 
-Maps expense categories to PDF form fields:
+### Learned categories (`config/learned_categories.json`)
+Merchant → category mappings accumulated from manual corrections in the GUI. These take priority in the categorization cascade.
 
-```json
-{
-  "schedule_c_mappings": {
-    "Car and truck expenses": {
-      "line": "9",
-      "field_pattern": "f1_36",
-      "description": "Schedule C Line 9"
-    }
-  }
-}
-```
+---
 
-**Fields:**
-- **line**: IRS Schedule C line number
-- **field_pattern**: PDF form field identifier
-- **description**: Human-readable description
+## 📊 Evaluation
 
+The system measures real correctness via reconciliation, not self-referential accuracy.
 
-
-## 🔧 Advanced Features
-
-### Generic Parser with Machine Learning
-
-The system includes an advanced **Generic Parser** that uses machine learning to automatically detect transaction patterns in unknown statement formats:
-
-#### How It Works
-1. **K-means Clustering**: Groups PDF lines by layout features (position, money presence, dates, text characteristics)
-2. **Pattern Detection**: Automatically generates regex patterns for transaction extraction
-3. **Smart Filtering**: Removes summary/header content using keyword detection
-4. **Fallback Support**: Activates when bank-specific parsers fail
-
-#### Technical Features
-- **Layout Analysis**: Analyzes PDF character positioning and line structure
-- **Feature Extraction**: Uses 13+ features including money patterns, date presence, and spatial positioning
-- **Automatic Regex Generation**: Creates custom regex patterns based on detected transaction clusters
-- **Multi-format Support**: Handles various date formats, currency symbols, and layout styles
-
-#### Usage
-The Generic Parser automatically activates as a fallback when:
-- No specific bank parser can handle the PDF
-- Statement format is unknown or unsupported
-- Bank-specific parser fails to extract transactions
-
-```python
-# The Generic Parser is automatically registered and used
-from bank_parsers.generic_regex import GenericRegexParser
-
-# Test if a PDF can be parsed
-parser = GenericRegexParser()
-if parser.can_parse(pdf_text):
-    transactions = parser.extract_transactions(pdf_text)
-```
-
-#### Dependencies
-Requires additional machine learning packages:
+### Run the eval harness
 ```bash
-pip install scikit-learn numpy pandas
+python eval/run_eval.py                      # whole corpus
+python eval/run_eval.py --bank "Capital One" # one bank
+python eval/run_eval.py --limit 20           # quick sample
 ```
+Reports per-bank: reconciliation rate (% that balance to the cent), mean discrepancy ($), rows extracted, and which strategy was used.
 
-### Regex Builder Tool - Pattern Discovery
-
-The `regex_builder.py` is a standalone analysis tool for discovering transaction patterns in bank statements that aren't picked up by existing parsers. It uses the same K-means clustering approach as the Generic Parser but provides detailed analysis and visual output.
-
-#### Purpose
-- **Pattern Discovery**: Analyze unsupported bank statement formats to understand their structure
-- **Regex Generation**: Automatically generate regex patterns for new bank statement types
-- **Visual Analysis**: Create visual representations of PDF layout and detected patterns
-- **Development Aid**: Help developers create new bank-specific parsers
-
-#### Usage
-
-**Basic Analysis:**
+### Category evaluation
 ```bash
-# Activate virtual environment with ML dependencies
-source venv_new/bin/activate
-
-# Analyze a single PDF statement
-python regex_builder.py path/to/statement.pdf
+python eval/category_eval.py --pdf "path/to/statement.pdf" --report
 ```
-
-**Visual Analysis with --draw flag:**
-```bash
-# Generate visual analysis images (requires Pillow)
-python regex_builder.py path/to/statement.pdf --draw
-```
-
-#### Features
-
-**Automatic Pattern Detection:**
-- K-means clustering of PDF lines by layout features
-- Automatic identification of transaction-like content
-- Smart filtering of headers, summaries, and non-transaction content
-- Generation of flexible regex patterns without hardcoded literals
-
-**Visual Analysis (--draw flag):**
-- **Page Layout Visualization**: Shows PDF structure with detected lines
-- **Cluster Analysis**: Color-coded visualization of different line clusters
-- **Transaction Highlighting**: Visual identification of detected transaction patterns
-- **Pattern Guides**: Visual guides showing regex pattern matching areas
-
-#### Output
-
-**Console Output:**
-```
-Processing PDF with 4 pages...
---- Page 1 ---
-Extracted 66 lines from page 1
-Clustering produced 4 clusters
-Chosen cluster for transactions: 1 (score: 102.61)
-Found 12 transaction-like lines
-Generated regex pattern: ^\s*(?:\d{1,2}[/-]\d{1,2}...)
-Matched 12 out of 12 transaction lines
-```
-
-**Generated Files:**
-- `transactions_extracted.csv`: Extracted transaction data
-- `page_N_analysis.png`: Visual analysis images (with --draw)
-- Console output with learned regex patterns
-
-#### When to Use
-
-**Use regex_builder.py when:**
-- Bank statements aren't supported by existing parsers
-- Generic Parser fails to extract transactions properly
-- You need to understand the structure of a new statement format
-- Developing a new bank-specific parser
-- Debugging transaction extraction issues
-
-**Example Workflow:**
-1. **Run basic analysis** to see if transactions are detected
-2. **Use --draw flag** to visualize the PDF structure and clustering
-3. **Examine generated regex patterns** for new parser development
-4. **Review extracted CSV** to validate transaction accuracy
-5. **Iterate and refine** patterns based on results
-
-#### Integration with Generic Parser
-
-The regex_builder.py tool serves as the foundation for the Generic Parser:
-- Same K-means clustering algorithm
-- Same pattern detection logic
-- Provides detailed analysis that the Generic Parser uses automatically
-- Useful for debugging when Generic Parser performance is suboptimal
-
-### Custom Transaction Patterns
-
-Extend transaction recognition by modifying `extract_transactions()` in `bank_statement_analyzer.py`:
-
-```python
-# Add custom patterns for your bank's format
-transaction_patterns = [
-    r'(\d{2}/\d{2}/\d{4})\s+(.+?)\s+(-?\$?[\d,]+\.?\d*)',
-    # Add your bank's specific pattern here
-]
-```
-
-### Multiple PDF Formats
-
-The system supports various bank statement formats:
-- Standard date-description-amount layouts
-- Multi-column formats
-- Different date formats (MM/DD/YYYY, DD/MM/YYYY)
-
-### Batch Processing
-
-Process multiple months/years of statements:
-
-```python
-from bank_statement_analyzer import BankStatementAnalyzer
-
-analyzer = BankStatementAnalyzer()
-pdf_files = glob.glob("Statements/*.pdf")
-analyzer.extract_from_multiple_pdfs(pdf_files)
-analyzer.categorize_transactions()
-data = analyzer.generate_schedule_c_data()
-```
-
-### Export Options
-
-Export data in multiple formats:
-
-```python
-# Export to Excel
-analyzer.export_to_excel("transactions.xlsx")
-
-# Export to CSV
-df = analyzer.get_transactions_dataframe()
-df.to_csv("transactions.csv", index=False)
-
-# Export Schedule C data
-schedule_data = analyzer.generate_schedule_c_data()
-with open("schedule_c_data.json", "w") as f:
-    json.dump(schedule_data, f, indent=2)
-```
-
-### Testing the Generic Parser
-
-The system includes a comprehensive test suite for evaluating the Generic Parser's performance:
-
-#### Running the Test Suite
-
-```bash
-# Activate virtual environment
-source venv_new/bin/activate
-
-# Run comprehensive tests on all PDFs
-python test_generic_parser.py
-```
-
-#### Test Results
-The test script evaluates:
-- **Success Rate**: Percentage of PDFs successfully parsed
-- **Transaction Count**: Number of transactions extracted per file
-- **Parser Comparison**: Generic parser vs bank-specific parsers
-- **Performance Metrics**: Processing time and accuracy
-
-#### Sample Output
-```
-GENERIC PARSER TEST RESULTS
-============================================================
-Total files tested: 20
-Successful extractions: 5
-Success rate: 25.0%
-
-Top performing files:
-  1. 2024-09-09_VISASTMT.pdf: 16 transactions
-  2. Statement_012025_9746.pdf: 24 transactions
-  3. Statement_022025_9746.pdf: 20 transactions
-```
-
-#### Interpreting Results
-- **High transaction counts**: Indicates good pattern detection
-- **Low success rates**: May indicate need for additional training data
-- **Zero transactions**: Could indicate PDF format incompatibility
-
-#### Improving Performance
-To enhance Generic Parser accuracy:
-1. **Add training data**: Include more diverse PDF formats in K_cluster_test/
-2. **Adjust clustering parameters**: Modify n_clusters in `cluster_transactions()`
-3. **Update filtering keywords**: Enhance `summary_keywords` list
-4. **Refine regex patterns**: Improve date and money detection patterns
-
-### Comprehensive Parser Efficacy Testing
-
-The `test_all_parsers.py` script provides comprehensive testing of all parsers against your entire PDF collection to evaluate system-wide performance and identify areas for improvement.
-
-#### Purpose
-- **System-wide Evaluation**: Test all parsers against all PDFs in the Statements directory
-- **Performance Metrics**: Generate detailed statistics on parser success rates and transaction extraction
-- **Comparative Analysis**: Compare performance between different parsers on the same files
-- **Quality Assurance**: Identify failing files and parser detection issues
-
-#### Running the Comprehensive Test
-
-```bash
-# Activate virtual environment
-source venv_new/bin/activate
-
-# Run comprehensive parser testing
-python test_all_parsers.py
-```
-
-#### Features
-
-**Comprehensive Testing:**
-- Tests all PDFs in the Statements directory automatically
-- Evaluates both automatic parser detection and individual parser performance
-- Measures processing time and success rates
-- Identifies files that fail to parse
-
-**Detailed Analysis:**
-- **Parser Detection Results**: Shows which parser was automatically selected for each file
-- **Individual Parser Performance**: Tests each parser against all files to show capability
-- **Success Rate Metrics**: Calculates success percentages and transaction counts
-- **Performance Statistics**: Processing time analysis and optimization insights
-
-#### Sample Output
-
-**Console Progress:**
-```
-Comprehensive Parser Efficacy Test
-==================================================
-Found 180 PDF files to test
-
-Progress: 95/180 (52.8%)
-Testing: eStmt_2024-05-31.pdf
-  Detected parser: Bank of America
-  Detected parser result: 45 transactions
-  Navy Federal: ✗ (0 transactions)
-  Capital One: ✗ (0 transactions)
-  Citibank: ✗ (0 transactions)
-  Chase: ✗ (0 transactions)
-  Bank of America: ✓ (45 transactions)
-  Generic: ✓ (12 transactions)
-```
-
-**Final Results:**
-```
-============================================================
-TEST COMPLETED
-============================================================
-Total files tested: 180
-Total testing time: 32.38 seconds
-Detailed statistics saved to: statistics.txt
-
-Quick Summary:
-  Successfully parsed: 172/180 (95.6%)
-  Average processing time: 0.18s per file
-```
-
-#### Generated Reports
-
-**statistics.txt** - Comprehensive analysis including:
-- **Overall Statistics**: Success rates and failure analysis
-- **Parser Detection Results**: Which parsers were selected and their performance
-- **Individual Parser Performance**: Detailed breakdown of each parser's capabilities
-- **Failed Files Analysis**: Specific files that couldn't be parsed and why
-- **Top Performing Files**: Best extraction results with transaction counts
-- **Performance Metrics**: Processing time statistics
-- **Recommendations**: Actionable insights for system improvement
-
-#### Interpreting Results
-
-**Success Rate Analysis:**
-- **95%+ success rate**: Excellent system performance
-- **80-95% success rate**: Good performance with room for optimization
-- **<80% success rate**: May indicate parser detection or format compatibility issues
-
-**Parser Performance Indicators:**
-- **High transaction counts**: Indicates effective pattern recognition
-- **100% success on detected files**: Shows parser accuracy when properly matched
-- **Low detection rates**: May indicate overly restrictive `can_parse()` methods
-
-#### Using Results for Optimization
-
-**Identify Improvement Areas:**
-1. **Failed Files**: Use `regex_builder.py` to analyze unsupported formats
-2. **Low Detection Rates**: Adjust parser `can_parse()` methods for better coverage
-3. **Performance Issues**: Optimize slow parsers or add more specific patterns
-4. **Generic Parser Tuning**: Use results to improve fallback parser accuracy
-
-**System Monitoring:**
-- Run periodically to ensure consistent performance
-- Compare results after parser updates or new bank statement formats
-- Track improvements in success rates over time
-
-#### Best Practices
-
-**Regular Testing:**
-- Run after adding new parsers or modifying existing ones
-- Test with new statement formats before production use
-- Monitor performance after system updates
-
-**Result Analysis:**
-- Focus on files with zero transactions - may indicate parsing issues
-- Compare individual parser results with detection results to identify mismatches
-- Use performance metrics to optimize processing speed
-
-## 🐛 Troubleshooting
-
-### Common Issues
-
-#### PDF Processing Errors
-
-**Problem**: "No transactions found in PDF"
-**Solution**: 
-- Verify PDF is text-based (not scanned image)
-- Check if PDF format matches expected patterns
-- Try different PDF extraction methods
-
-#### Field Mapping Issues
-
-**Problem**: "Numbers appear in wrong PDF fields"
-**Solution**:
-- Use the visual field mapper tool
-- Create custom field mapping configuration
-- Verify PDF form field names
-
-#### Categorization Problems
-
-**Problem**: "Transactions not categorized correctly"
-**Solutions**:
-- Update `business_categories.json` with better keywords
-- Add specific merchant names to categories
-- Update business categories with more specific keywords
-
-### Performance Optimization
-
-For large numbers of PDFs:
-
-1. **Process in batches**:
-   ```python
-   # Process 10 PDFs at a time
-   for batch in chunks(pdf_files, 10):
-       analyzer.extract_from_multiple_pdfs(batch)
-   ```
-
-2. **Use multiprocessing**:
-   ```python
-   from multiprocessing import Pool
-   
-   with Pool() as pool:
-       results = pool.map(process_pdf, pdf_files)
-   ```
-
-### Debug Mode
-
-Enable detailed logging:
-
-```python
-import logging
-logging.basicConfig(level=logging.DEBUG)
-
-analyzer = BankStatementAnalyzer()
-# Detailed logs will show extraction and categorization steps
-```
+Flags likely mis-categorizations (e.g. a gas-station name in a non-Travel category) and can emit a label template for human review.
+
+### Current results (balanced 20-PDF sample)
+| Bank | Reconciliation rate | Strategy |
+|------|---------------------|----------|
+| Bank of America | 100% | deposits_withdrawals / balance_equation |
+| Chase | 100% | balance_equation |
+| Citibank | 100% | charges_total |
+| Navy Federal | 75% | running_balance_chain (checking) / charges_total (Visa) |
+| Capital One | 50% | charges_total |
+
+Overall ~85% of statements reconcile to the cent. The remainder are flagged with exact dollar discrepancies for review.
+
+---
 
 ## 📁 Project Structure
 
 ```
 statement_organizer/
-├── config/                        # Configuration files
-│   ├── business_categories.json   # Expense categorization rules
-│   ├── schedule_c_field_mappings.json # PDF field mappings
-│   ├── learned_categories.json    # Learned categorization patterns
-│   └── schedule_c.pdf             # IRS Schedule C form template
-├── bank_parsers/                  # Modular bank parser system
-│   ├── __init__.py               # Parser base classes and registry
-│   ├── registry.py               # Parser registration and detection
-│   ├── navy_federal.py           # Navy Federal Credit Union parser
-│   ├── capital_one.py            # Capital One parser
-│   ├── citibank.py               # Citibank parser
-│   ├── chase.py                  # Chase parser
-│   ├── bank_of_america.py        # Bank of America parser
-│   └── generic_regex.py          # ML-powered generic parser
-├── bank_statement_analyzer.py     # Core transaction extraction
-├── bank_statement_gui.py          # Main GUI interface
-├── final_schedule_c_filler.py     # Main PDF form filler
-├── schedule_c_processor.py        # Alternative Schedule C processor
-├── pdf_field_mapper.py            # Field mapping utilities
-├── create_categories.py           # Category creation tool
-├── test_generic_parser.py         # Generic parser test suite
-├── requirements.txt               # Python dependencies
-├── .gitignore                     # Git ignore rules
-├── venv/                          # Virtual environment
-└── README.md                      # This file
+├── bank_parsers/                       # Core extraction engine
+│   ├── geometry_extractor.py           # Word-geometry transaction extraction
+│   ├── layout_profiles.py              # Per-bank layout profiles (multi-layout)
+│   ├── reconciler.py                   # Totals reconciliation (4 strategies)
+│   ├── reconciliation_pipeline.py      # Geometry → reconcile → AI repair
+│   ├── ocr_geometry_bridge.py          # OCR (Vision/Tesseract) → geometry
+│   ├── ai_client.py                    # Unified local→OpenAI AI client
+│   ├── ai_profile_generator.py         # AI-assisted profile generation
+│   ├── categorizer.py                  # Learned→keyword→AI categorization
+│   ├── description_normalizer.py       # Bank-noise stripping
+│   ├── transaction_filters.py          # Summary-row + dedup filtering
+│   ├── transaction_validation.py       # Well-formedness validation
+│   ├── format_memory.py                # Layout learning loop
+│   ├── log_utils.py                    # Capped log rotation
+│   ├── ai_detector.py                  # AI bank detection + vision extraction
+│   ├── ai_parser.py                    # AI parser adapter
+│   ├── extraction_pipeline.py          # Confidence-gated pipeline (legacy GUI path)
+│   ├── text_extraction.py              # Unified text-extraction backends
+│   ├── vision_ocr.py                   # macOS Vision OCR
+│   ├── image_normalization.py          # OCR image preprocessing
+│   ├── bank_detection.py               # Multi-stage bank detection
+│   ├── registry.py                     # Parser registry + dispatch
+│   ├── __init__.py                     # Parser base class + registry
+│   ├── navy_federal.py                 # Navy Federal regex parser
+│   ├── capital_one.py                  # Capital One regex parser
+│   ├── citibank.py                     # Citibank regex parser
+│   ├── chase.py                        # Chase regex parser
+│   ├── bank_of_america.py              # Bank of America regex parser
+│   ├── generic_regex.py                # K-means generic fallback parser
+│   └── ml_parser.py                    # LightGBM row classifier
+├── eval/                               # Evaluation harness
+│   ├── run_eval.py                     # Reconciliation evaluation
+│   └── category_eval.py                # Categorization evaluation
+├── config/                             # Configuration
+│   ├── ai_settings.json                # AI backend + thresholds
+│   ├── business_categories.json        # Category → keywords
+│   ├── learned_categories.json         # Merchant → category (learned)
+│   ├── schedule_c_field_mappings.json  # Schedule C PDF field map
+│   └── schedule_c.pdf                  # IRS Schedule C template
+├── models/                             # Local AI models (gitignored — downloadable)
+├── Statements/                         # Input PDF statements (gitignored)
+├── bank_statement_analyzer.py          # Core analyzer + CLI
+├── bank_statement_gui.py               # PyQt6 GUI
+├── final_schedule_c_filler.py          # Schedule C PDF generator
+├── pdf_field_mapper.py                 # Visual field-mapping tool
+├── install.py                          # Cross-platform installer
+├── requirements.txt                    # Dependencies
+└── README.md                           # This file
 ```
+
+---
+
+## 🐛 Troubleshooting
+
+### "No transactions extracted"
+- **Image-only PDF**: ensure an OCR backend is installed (macOS Vision built-in; Tesseract elsewhere). The system auto-detects and OCRs.
+- **Unknown bank**: the AI profile generator should kick in. Check that an AI backend (local model or OpenAI key) is configured.
+- Run `python eval/run_eval.py --pdf <path>` to see exactly what happened (extraction count, reconciliation result, discrepancy).
+
+### "Reconciliation mismatch" (non-zero discrepancy)
+This is the system **working correctly** — it detected an extraction error. The discrepancy tells you exactly how much is off:
+- Small discrepancy ($1–20): likely a single mis-extracted transaction. Check the eval output for which row.
+- Large discrepancy: likely a sign-convention issue or a missed/extra block of transactions. Review the profile for that bank.
+
+### "Transactions not categorized correctly"
+- Run `python eval/category_eval.py --pdf <path> --report` to see flagged miscategorizations.
+- Edit `config/business_categories.json` to add keywords for miscategorized merchants.
+- Enable AI categorization (GUI checkbox or `config/ai_settings.json`) for merchants keyword matching can't handle.
+
+### Slow processing
+- Local AI model inference is the slowest step. If reconciliation passes deterministically, no AI is called — that's the fast path.
+- For large batches, the categorizer uses batched AI calls (configurable via `categorization_batch_size` in `ai_settings.json`).
+
+---
 
 ## 🤝 Contributing
 
 1. Fork the repository
 2. Create a feature branch
-3. Make your changes
-4. Add tests if applicable
-5. Submit a pull request
-
-## 📄 License
-
-This project is licensed under the GNU GPL3 License - see the LICENSE file for details.
-
-## 🆘 Support
-
-For issues and questions:
-1. Check the troubleshooting section
-2. Review the configuration files
-3. Enable debug logging for detailed information
-4. Create an issue with detailed error information
+3. Run `python eval/run_eval.py` to establish a baseline reconciliation rate
+4. Make your changes
+5. Re-run the eval to confirm no regression
+6. Submit a pull request
 
 ---
 
-**Note**: This tool is designed to assist with tax preparation but should not replace professional tax advice. Always review generated forms and consult with a tax professional for complex situations.
+## 📄 License
+
+GNU GPL3 — see the [LICENSE](LICENSE) file.
+
+---
+
+**Note**: This tool assists with tax preparation but does not replace professional tax advice. Always review generated forms and consult a tax professional for complex situations. The reconciliation system verifies extraction completeness, but categorization accuracy depends on your category configuration and AI backend.
