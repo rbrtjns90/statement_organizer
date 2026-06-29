@@ -609,6 +609,22 @@ def extract_from_pdf(pdf_path: str, bank: Optional[str] = None) -> Tuple[List[Ra
         profile = get_profile_for_pdf(bank, pdf_path=pdf_path)
     else:
         profile = None
+
+    # If no profile matched (unknown bank), attempt AI-assisted profile
+    # generation. This combines vision (column roles, totals labels) with
+    # measured geometry (exact x-coordinates) to bootstrap a profile on the fly.
+    # It's best-effort: if the AI backend is unavailable, we proceed with
+    # auto-detect-only extraction (which still works for simple layouts).
+    if profile is None and bank in (None, "Unknown", ""):
+        try:
+            from .ai_profile_generator import generate_profile_for_pdf
+
+            gen_profile, _diag = generate_profile_for_pdf(pdf_path, bank=bank or "Unknown")
+            if gen_profile is not None and gen_profile.amount_column_x1 is not None:
+                profile = gen_profile
+        except Exception:
+            pass  # AI generation is best-effort; fall through to auto-detect
+
     all_rows: List[RawRow] = []
     last_columns = ColumnPlan(amount_x1=None)
 
