@@ -120,20 +120,8 @@ class AIBankDetector:
                 pil_image.save(buffered, format="PNG", optimize=True)
                 image_b64 = base64.b64encode(buffered.getvalue()).decode()
                 
-                # Try to extract text - first with pdfplumber, then Vision OCR if needed
+                # Extract text with pdfplumber only (Vision OCR disabled due to crashes)
                 page_text = first_page.extract_text() or ""
-                
-                # If very little text (likely scanned PDF), use Vision OCR
-                if len(page_text.strip()) < 50 and VISION_OCR_AVAILABLE:
-                    print("🤖 PDF appears scanned, using Vision OCR for text extraction...")
-                    try:
-                        page_text = vision_extract_text(pdf_path, use_vision_if_scanned=True)
-                        # Just get first page text
-                        if "--- Page" in page_text:
-                            page_text = page_text.split("--- Page")[1] if len(page_text.split("--- Page")) > 1 else page_text
-                            page_text = page_text.split("---")[0] if "---" in page_text else page_text
-                    except Exception as e:
-                        print(f"⚠️ Vision OCR failed: {e}")
                 
                 # Get text excerpt (first 12 lines)
                 text_lines = page_text.split('\n')[:12]
@@ -249,148 +237,162 @@ def detect_bank_with_ai(pdf_path, return_confidence=False):
         return result.get("bank") if isinstance(result, dict) else result
 
 
-def extract_transactions_with_ai(pdf_path):
-    """Extract transactions from PDF using AI line-by-line detection.
-    
-    This is used for unknown banks where we don't have regex parsers.
-    
-    Args:
-        pdf_path: Path to PDF file
-    
-    Returns:
-        List of transaction dicts with date, description, amount
+def _render_page_image(page, max_width=1200, resolution=150):
+    """Render a pdfplumber page to a base64 PNG string for vision models.
+
+    Reused by bank detection and transaction extraction. Capped at max_width so
+    large statements don't blow up token cost.
     """
-    detector = get_ai_detector()
-    if not detector.client:
+    pix = page.to_image(resolution=resolution)
+    pil_image = pix.original
+    if pil_image.width > max_width:
+        ratio = max_width / pil_image.width
+        new_size = (max_width, int(pil_image.height * ratio))
+        pil_image = pil_image.resize(new_size, Image.LANCZOS)
+    buffered = io.BytesIO()
+    pil_image.save(buffered, format="PNG", optimize=True)
+    return base64.b64encode(buffered.getvalue()).decode()
+
+
+def _build_extraction_prompt(page_text):
+    """Tightened transaction-extraction prompt.
+
+    Compared to the original this:
+      - asks for transaction_type (debit/credit) so sign conventions are explicit,
+      - has explicit anti-hallucination rules (no inventing merchants/totals),
+      - demands strict JSON with no commentary,
+      - explains how to handle amounts (negative=debit) consistently.
+    """
+    return (
+        "You are extracting transactions from a bank statement page. "
+        "Look at the image and the text below.\n\n"
+        "Extract EVERY individual transaction line. For each transaction return:\n"
+        '  - "date": the transaction date as MM/DD/YYYY (use the page/statement '
+        "year if the line only shows month/day; if truly unknown, use 01/01/2024)\n"
+        '  - "description": the merchant/payee name, cleaned of reference numbers '
+        "and card prefixes\n"
+        '  - "amount": the dollar amount as a number. NEGATIVE for charges/'
+        "debits/purchases, POSITIVE for deposits/payments/refunds\n"
+        '  - "transaction_type": "debit" or "credit"\n\n'
+        "RULES:\n"
+        "- Include ONLY real transactions (purchases, payments, deposits, "
+        "withdrawals, fees, transfers).\n"
+        "- EXCLUDE summary lines, running balances, totals, column headers, "
+        "page footers, and account-info blocks.\n"
+        "- Do NOT invent transactions. If a row is unreadable, skip it.\n"
+        "- Do NOT include the ending balance or any total row.\n"
+        "- Return ONLY a JSON array, no prose, no code fences.\n\n"
+        'Schema: [{"date":"MM/DD/YYYY","description":"string","amount":-123.45,'
+        '"transaction_type":"debit"}]\n\n'
+        f"Page text for reference:\n{page_text[:1500]}"
+    )
+
+
+def extract_transactions_with_ai(pdf_path):
+    """Extract transactions from a PDF using AI (the "if you have to" path).
+
+    Uses the unified AIClient so it transparently runs on a local model first
+    and falls back to OpenAI. Vision is preferred (image + text); if the active
+    backend isn't vision-capable, it falls back to text-only extraction.
+
+    All results pass through ValidationPipeline (dedup + quality scoring) before
+    being returned, matching the previous behavior.
+
+    Args:
+        pdf_path: Path to PDF file.
+
+    Returns:
+        List of validated transaction dicts (date, description, amount, category).
+    """
+    # Unified client (local -> OpenAI fallback). Bail out only if neither works.
+    from .ai_client import get_ai_client
+    from .transaction_validation import ValidationPipeline
+
+    client = get_ai_client()
+    if not client.available:
+        print("⚠️ AI extraction requested but no backend is available")
         return []
-    
+
+    settings = client.settings
+    max_tokens = int(settings.get("max_tokens_extraction", 2000))
+
     try:
         import pdfplumber
-        from datetime import datetime
-        
-        transactions = []
-        
+
+        raw_transactions = []
+
         with pdfplumber.open(pdf_path) as pdf:
             for page_num, page in enumerate(pdf.pages):
-                # Get page text
                 page_text = page.extract_text() or ""
-                lines = page_text.split('\n')
-                
-                # Render page as image for visual context
-                pix = page.to_image(resolution=150)
-                pil_image = pix.original
-                
-                # Resize if needed
-                max_width = 1200
-                if pil_image.width > max_width:
-                    ratio = max_width / pil_image.width
-                    new_size = (max_width, int(pil_image.height * ratio))
-                    pil_image = pil_image.resize(new_size, Image.LANCZOS)
-                
-                # Convert to base64
-                buffered = io.BytesIO()
-                pil_image.save(buffered, format="PNG", optimize=True)
-                image_b64 = base64.b64encode(buffered.getvalue()).decode()
-                
-                # Ask AI to extract transactions from this page
-                prompt = (
-                    f"Extract ALL individual transactions from this bank statement page.\n\n"
-                    f"FOCUS ON:\n"
-                    f"1. Description: merchant/payee name (most important for categorization)\n"
-                    f"2. Amount: exact dollar amount (critical for totals)\n"
-                    f"3. Date: approximate date is OK, use 01/01/2024 if unknown\n\n"
-                    f"RULES:\n"
-                    f"- Extract ONLY actual transactions (purchases, payments, deposits, withdrawals)\n"
-                    f"- SKIP summary lines, balances, totals, headers, and fee descriptions\n"
-                    f"- Amount must be a valid number - use negative for debits/charges\n"
-                    f"- Description should be clear enough to identify the merchant\n\n"
-                    f'Respond with JSON array: [{{"date": "MM/DD/YYYY", "description": "merchant name", "amount": -123.45}}]\n\n'
-                    f"Page text:\n{page_text[:1000]}"  # First 1000 chars for context
-                )
-                
-                messages = [
-                    {
-                        "role": "user",
-                        "content": [
-                            {"type": "text", "text": prompt},
-                            {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{image_b64}"}}
-                        ]
-                    }
-                ]
-                
-                # Call AI
-                response = detector.client.create_chat_completion(
-                    messages=messages,
-                    max_tokens=500,  # More tokens for multiple transactions
-                    temperature=0
-                )
-                
-                response_text = response["choices"][0]["message"]["content"].strip()
-                
-                # Parse JSON response
-                import re
-                json_match = re.search(r'\[.*\]', response_text, re.DOTALL)
-                if json_match:
+                if not page_text.strip() and not client._openai.available:
+                    # No text and no vision-capable backend -> nothing to do here.
+                    continue
+
+                prompt = _build_extraction_prompt(page_text)
+                page_txns = None
+
+                # Prefer vision (image + text) when a backend supports it.
+                if client.active_backend == "openai" or client._local.supports_vision:
                     try:
-                        page_transactions = json.loads(json_match.group(0))
-                        
-                        # Validate and normalize each transaction
-                        for txn in page_transactions:
-                            if not isinstance(txn, dict):
-                                continue
-                                
-                            # Check required fields
-                            if 'date' not in txn or 'description' not in txn or 'amount' not in txn:
-                                print(f"⚠️ Skipping transaction missing required fields: {txn}")
-                                continue
-                            
-                            try:
-                                # Parse amount first (most critical)
-                                amount_val = txn['amount']
-                                if amount_val is None or str(amount_val).strip().lower() in ['none', 'n/a', '']:
-                                    print(f"⚠️ Skipping transaction with invalid amount: {amount_val}")
-                                    continue
-                                
-                                amount_str = str(amount_val).replace('$', '').replace(',', '').strip()
-                                amount = float(amount_str)
-                                
-                                # Get description (critical for categorization)
-                                description = str(txn['description']).strip()
-                                if not description or description.lower() in ['none', 'n/a']:
-                                    print(f"⚠️ Skipping transaction with empty description")
-                                    continue
-                                
-                                # Parse date - use fallback if invalid (less critical)
-                                from dateutil import parser as date_parser
-                                from datetime import date as date_class
-                                
-                                date_str = str(txn['date']).strip()
-                                try:
-                                    # Skip obvious placeholders but try to parse anything else
-                                    if 'X' in date_str.upper():
-                                        # Use fallback date
-                                        date_obj = date_class(2024, 1, 1)
-                                    else:
-                                        date_obj = date_parser.parse(date_str).date()
-                                except:
-                                    # If date parsing fails, use fallback date
-                                    date_obj = date_class(2024, 1, 1)
-                                
-                                transactions.append({
-                                    'date': date_obj,
-                                    'description': description,
-                                    'amount': amount,
-                                    'category': None
-                                })
-                            except (ValueError, AttributeError, TypeError) as e:
-                                print(f"⚠️ Skipping invalid transaction - {type(e).__name__}: {str(e)[:50]}")
-                                continue
-                    except json.JSONDecodeError:
-                        print(f"⚠️ Could not parse AI response as JSON on page {page_num + 1}")
-        
-        print(f"✅ AI extracted {len(transactions)} transactions")
-        return transactions
-        
+                        image_b64 = _render_page_image(page)
+                        parsed = client.chat_vision_json(
+                            image_b64,
+                            prompt,
+                            max_tokens=max_tokens,
+                            temperature=0,
+                        )
+                        if isinstance(parsed, list):
+                            page_txns = parsed
+                    except Exception as exc:
+                        print(f"⚠️ Vision extraction failed on page {page_num + 1}: {exc}")
+
+                # Fallback: text-only extraction.
+                if not page_txns:
+                    parsed = client.chat_text_json(prompt, max_tokens=max_tokens, temperature=0)
+                    if isinstance(parsed, list):
+                        page_txns = parsed
+                    elif isinstance(parsed, dict):
+                        page_txns = [parsed]
+
+                if not page_txns:
+                    print(f"⚠️ No transactions parsed from AI response on page {page_num + 1}")
+                    continue
+
+                for txn in page_txns:
+                    if isinstance(txn, dict):
+                        txn["page"] = page_num + 1
+                        txn["source"] = "ai_extraction"
+                        raw_transactions.append(txn)
+
+        # Validate all extracted transactions (relaxed threshold for AI output).
+        if raw_transactions:
+            print(f"🔍 Validating {len(raw_transactions)} AI-extracted transactions...")
+            validator = ValidationPipeline(min_quality_score=20.0)
+            valid_transactions = validator.validate_extraction_result(
+                raw_transactions, source="ai_extraction", statement_date=None
+            )
+            print(
+                f"✅ AI extracted {len(valid_transactions)} valid transactions "
+                f"({len(raw_transactions) - len(valid_transactions)} rejected) "
+                f"via {client.active_backend}"
+            )
+            return [
+                {
+                    "date": txn.date,
+                    "description": txn.description,
+                    "amount": txn.amount,
+                    "category": txn.category,
+                    "source": txn.source,
+                    "page": txn.page,
+                }
+                for txn in valid_transactions
+            ]
+
+        return []
+
     except Exception as e:
         print(f"❌ AI transaction extraction error: {e}")
+        import traceback
+
+        traceback.print_exc()
         return []

@@ -19,56 +19,80 @@ class CitibankParser(BankStatementParser):
         self.supported_formats = ["PDF"]
     
     def can_parse(self, text: str) -> bool:
-        """Enhanced Citibank detection with comprehensive patterns."""
-        indicators = [
+        """Enhanced Citibank detection with comprehensive patterns.
+
+        IMPORTANT: generic phrases like "Account Summary", "Statement Period",
+        and "Member FDIC" appear on virtually every bank statement and must NOT
+        be treated as Citibank indicators on their own - they caused widespread
+        misdetection of Bank of America statements as Citibank. Only actual Citi
+        brand markers count. We also explicitly exclude when a stronger
+        competitor brand is present.
+        """
+        # Strong Citi-brand indicators that uniquely identify Citibank.
+        # NOTE: deliberately excludes generic phrases (Account Summary, Statement
+        # Period, Member FDIC) which caused false positives on BofA statements.
+        strong_indicators = [
             # Core brand names (case variations)
             "Citibank", "CITIBANK", "CitiBank", "CITI BANK",
-            "Citi", "CITI",
-            "Citicorp", "CITICORP", 
+            "Citicorp", "CITICORP",
             "Citigroup", "CITIGROUP",
-            
-            # Web domains and URLs
+
+            # Web domains and URLs (highly specific)
             "citibank.com", "citi.com", "online.citi.com",
             "www.citi.com", "WWW.CITI.COM",
-            
-            # Banking regulatory and service phrases
-            "Member FDIC", "MEMBER FDIC", "FDIC",
+
+            # Citi-specific service phrases
             "Thank you for banking with Citi",
             "Citi Customer Service", "CITI CUSTOMER SERVICE",
             "CitiPhone Banking", "CITIPHONE BANKING",
             "Citi Cards", "CITI CARDS", "CitiCard", "CITICARD",
-            
-            # Statement headers and document identifiers
-            "Account Summary", "ACCOUNT SUMMARY",
-            "Statement Period", "STATEMENT PERIOD", 
             "Citi Statement", "CITI STATEMENT",
-            "Checking Account Summary", "CHECKING ACCOUNT SUMMARY",
-            "Savings Account Summary", "SAVINGS ACCOUNT SUMMARY",
-            
-            # Additional Citi-specific terms
+
+            # Citi-specific product terms
             "Citi Online", "CITI ONLINE",
             "Citi Mobile", "CITI MOBILE",
             "CitiBusiness", "CITIBUSINESS",
-            "Citi Priority", "CITI PRIORITY"
+            "Citi Priority", "CITI PRIORITY",
         ]
-        
+
         text_upper = text.upper()
-        
-        # Check for any indicator
-        for indicator in indicators:
-            if indicator.upper() in text_upper:
-                return True
-        
-        # Additional fuzzy matching for "CITI" variations with word boundaries
-        citi_variations = [
-            "CITI ", " CITI", "CITI\n", "\nCITI", 
-            "CITI.", ".CITI", "CITI,", ",CITI",
-            "CITI:", ":CITI", "CITI-", "-CITI"
+
+        # Competitor brands that should override a weak Citi signal. If any of
+        # these are present, this is NOT a Citibank statement.
+        competitor_brands = [
+            "BANK OF AMERICA", "BANKOFAMERICA", "BANKOFAMERICA.COM",
+            "CHASE", "JPMORGAN", "JP MORGAN",
+            "NAVY FEDERAL", "NFCU", "NAVYFEDERAL",
+            "CAPITAL ONE", "CAPITALONE",
+            "WELLS FARGO", "WELLSFARGO",
         ]
-        for variation in citi_variations:
-            if variation in text_upper:
+        has_competitor = any(b in text_upper for b in competitor_brands)
+
+        # Strong indicator alone is enough (these are Citi-exclusive).
+        for indicator in strong_indicators:
+            if indicator.upper() in text_upper:
+                # Even a strong hit is suspicious if a competitor brand is also
+                # present - the competitor wins. (Some Citi statements may mention
+                # another bank in a reference, so we only reject when BOTH appear,
+                # but a competitor brand + only a bare "CITI" substring is not Citi.)
+                if has_competitor and indicator.upper() in (
+                    "CITI BANK", "CITI",  # weak forms
+                ):
+                    continue
                 return True
-        
+
+        # Additional fuzzy matching for "CITI" variations with word boundaries.
+        # This is a WEAK signal - require no competitor brand present.
+        if not has_competitor:
+            citi_variations = [
+                "CITI ", " CITI", "CITI\n", "\nCITI",
+                "CITI.", ".CITI", "CITI,", ",CITI",
+                "CITI:", ":CITI", "CITI-", "-CITI",
+            ]
+            for variation in citi_variations:
+                if variation in text_upper:
+                    return True
+
         return False
     
     def extract_transactions(self, text):

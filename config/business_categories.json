@@ -1,80 +1,178 @@
 {
+  "Office Supplies": [
+    "staples",
+    "office depot",
+    "office max",
+    "office supplies"
+  ],
+  "Travel & Transportation": [
+    "airline",
+    "delta air",
+    "united",
+    "southwest",
+    "american air",
+    "hotel",
+    "marriott",
+    "hilton",
+    "holiday inn",
+    "airbnb",
+    "uber trip",
+    "uber *trip",
+    "lyft",
+    "taxi",
+    "rental car",
+    "hertz",
+    "enterprise",
+    "love's",
+    "loves",
+    "flying j",
+    "pilot",
+    "shell oil",
+    "chevron",
+    "marathon petro",
+    "petro",
+    "exxon",
+    "mobile purchase",
+    "fuel",
+    "gas",
+    "circle k",
+    "qt ",
+    "spinx",
+    "murphy",
+    "speedway",
+    "race trac",
+    "racetrac",
+    "ta #",
+    "ta #227",
+    "7-eleven",
+    "bp#",
+    "sunoco",
+    "valero"
+  ],
   "Meals & Entertainment": [
     "restaurant",
     "cafe",
     "coffee",
+    "starbucks",
+    "mcdonald",
+    "subway",
+    "chick-fil-a",
+    "arbys",
     "doordash",
     "grubhub",
     "ubereats",
-    "uber *eats"
+    "uber eats",
+    "uber *eats",
+    "cinemark",
+    "amc"
   ],
   "Software & Subscriptions": [
     "github",
     "aws",
+    "amazon web",
     "google cloud",
     "microsoft",
     "zoom",
     "slack",
-    "adobe"
+    "adobe",
+    "claude.ai",
+    "apple.com/bill",
+    "pp*apple",
+    "subscription",
+    "saas"
   ],
   "Marketing": [
     "facebook ads",
     "google ads",
     "marketing",
-    "advertising"
+    "advertising",
+    "adwords",
+    "mailchimp"
   ],
   "Professional Services": [
     "lawyer",
+    "attorney",
     "accountant",
     "consulting",
-    "legal"
+    "legal",
+    "cpa"
   ],
   "Insurance": [
     "freedom life ins",
     "ins. prem",
     "ngic",
     "delta dental",
-    "insurance"
+    "insurance",
+    "geico",
+    "allstate",
+    "progressive"
   ],
   "Banking & Credit": [
     "citi autopay",
     "payment",
     "transfer",
-    "banking"
+    "banking",
+    "monthly service fee",
+    "service fee",
+    "overdraft",
+    "interest charge",
+    "finance charge",
+    "late fee"
   ],
   "Utilities": [
     "phone",
+    "verizon",
+    "at&t",
+    "t-mobile",
     "internet",
+    "comcast",
     "electricity",
     "water",
-    "gas"
+    "gas company",
+    "utility"
   ],
-  "Other Business Expenses": [],
-  "Advertising": [],
+  "Rent": [
+    "rent",
+    "lease",
+    "coworking",
+    "wework"
+  ],
+  "Repairs or Maintenance": [
+    "repair",
+    "maintenance",
+    "harbor freight",
+    "home depot",
+    "lowes"
+  ],
+  "Advertising": [
+    "facebook ads",
+    "google ads",
+    "advertising"
+  ],
   "Depletion": [],
   "Depreciation": [],
   "Employee Benefit Programs": [],
-  "Interest Mortgage": [],
-  "Pension and profit-sharing plans": [],
-  "Rent or Lease Vehicles, Mach": [],
-  "Rent or Lease Other Business": [],
-  "Repairs or Maintenance": [
-    "staples",
-    "office depot",
-    "amazon",
-    "office supplies"
+  "Interest Mortgage": [
+    "mortgage interest"
   ],
-  "Supplies (not incl Part III)": [
-    "airline",
-    "hotel",
-    "airbnb",
-    "uber *trip",
-    "lyft",
-    "taxi",
-    "rental car",
-    "love's",
-    "mobile purchase"
+  "Pension and profit-sharing plans": [
+    "401k",
+    "retirement",
+    "pension"
   ],
-  "Taxes or licenses": [],
-  "Energy efficient commercial bldgs": []
+  "Rent or Lease Vehicles, Mach": [
+    "vehicle lease",
+    "equipment lease"
+  ],
+  "Rent or Lease Other Business": [
+    "office lease"
+  ],
+  "Supplies (not incl Part III)": [],
+  "Taxes or licenses": [
+    "tax",
+    "license",
+    "permit"
+  ],
+  "Energy efficient commercial bldgs": [],
+  "Other Business Expenses": []
 }

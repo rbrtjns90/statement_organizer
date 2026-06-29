@@ -1,0 +1,100 @@
+{
+  "6af5ce17f3bd213f": {
+    "bank": "Citibank",
+    "first_seen": "2026-06-29T05:22:55",
+    "last_seen": "2026-06-29T07:14:59",
+    "seen_count": 192,
+    "sample_path": "Statements/Bank of America/eStmt_2022-01-31.pdf",
+    "source": "ai_extraction",
+    "signature": {
+      "header": "POBOXCUSTOMERSERVICEINFO|WILMINGTONDE|BUSINESS",
+      "dominant_date_format": "none",
+      "txn_like_lines": 122,
+      "line_count": 280
+    }
+  },
+  "6541f74386dbd45d": {
+    "bank": "Navy Federal",
+    "first_seen": "2026-06-29T05:57:39",
+    "last_seen": "2026-06-29T07:13:34",
+    "seen_count": 6,
+    "sample_path": "Statements/Bank of America/eStmt_2021-11-30.pdf",
+    "source": "ai_extraction",
+    "signature": {
+      "header": "POBOXCUSTOMERSERVICEINFO|WILMINGTONDE|BUSINESS",
+      "dominant_date_format": "mdy",
+      "txn_like_lines": 52,
+      "line_count": 182
+    }
+  },
+  "ad7ef87140533194": {
+    "bank": "Bank of America",
+    "first_seen": "2026-06-29T06:07:58",
+    "last_seen": "2026-06-29T07:16:47",
+    "seen_count": 3,
+    "sample_path": "Statements/Bank of America/Credit/eStmt_2025-01-12.pdf",
+    "source": "ai_extraction",
+    "signature": {
+      "header": "JONESAUTOLOGISTICS|DECEMBERJANUARYCOMPANYST",
+      "dominant_date_format": "dmon",
+      "txn_like_lines": 23,
+      "line_count": 183
+    }
+  },
+  "b228d03b91baebd4": {
+    "bank": "Bank of America",
+    "first_seen": "2026-06-29T06:08:16",
+    "last_seen": "2026-06-29T07:03:18",
+    "seen_count": 2,
+    "sample_path": "Statements/Bank of America/Credit/eStmt_2025-02-12.pdf",
+    "source": "ai_extraction",
+    "signature": {
+      "header": "JONESAUTOLOGISTICS|JANUARYFEBRUARYCOMPANYST",
+      "dominant_date_format": "dmon",
+      "txn_like_lines": 13,
+      "line_count": 177
+    }
+  },
+  "44f1e509360b4395": {
+    "bank": "Bank of America",
+    "first_seen": "2026-06-29T06:08:31",
+    "last_seen": "2026-06-29T07:03:33",
+    "seen_count": 2,
+    "sample_path": "Statements/Bank of America/Credit/eStmt_2025-03-12.pdf",
+    "source": "ai_extraction",
+    "signature": {
+      "header": "JONESAUTOLOGISTICS|FEBRUARYMARCHCOMPANYSTAT",
+      "dominant_date_format": "dmon",
+      "txn_like_lines": 6,
+      "line_count": 177
+    }
+  },
+  "d174db5087fb7d8a": {
+    "bank": "Bank of America",
+    "first_seen": "2026-06-29T06:08:37",
+    "last_seen": "2026-06-29T07:03:39",
+    "seen_count": 2,
+    "sample_path": "Statements/Bank of America/Credit/eStmt_2025-04-12.pdf",
+    "source": "ai_extraction",
+    "signature": {
+      "header": "JONESAUTOLOGISTICS|MARCHAPRILCOMPANYSTATEME",
+      "dominant_date_format": "dmon",
+      "txn_like_lines": 2,
+      "line_count": 144
+    }
+  },
+  "37517bc5d1126f41": {
+    "bank": "ML Parser",
+    "first_seen": "2026-06-29T06:40:53",
+    "last_seen": "2026-06-29T06:40:53",
+    "seen_count": 1,
+    "sample_path": "Statements/dummy_statement2.pdf",
+    "source": "ai_extraction",
+    "signature": {
+      "header": "BANKSTATEMENTEXAMPLE|YOURBANK|ACCOUNTNAMEMRJOHNSMITH",
+      "dominant_date_format": "dmon",
+      "txn_like_lines": 0,
+      "line_count": 37
+    }
+  }
+}

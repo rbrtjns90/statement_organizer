@@ -21,6 +21,36 @@ A comprehensive Python application that extracts transactions from bank statemen
 - **Transaction Management**: Delete, edit, and manage transactions with real-time updates
 - **Multiprocessing Support**: Parallel processing for faster PDF analysis
 
+### 🤖 AI-Fallback Architecture (works on any future PDF)
+The system extracts and categorizes transactions from **any** bank statement —
+known or never-seen-before — using a deterministic-first, AI-on-demand strategy:
+
+1. **Confidence-gated extraction** (`bank_parsers/extraction_pipeline.py`): runs
+   the existing deterministic parsers (regex per-bank → ML → generic) and routes
+   **all** results through the validation pipeline (dedup + quality scoring). It
+   computes a document-confidence score and escalates to AI extraction **only
+   when confidence is low** (configurable threshold, default 50/100) — "use the
+   AI model if you have to".
+2. **Unified AI client** (`bank_parsers/ai_client.py`): one interface for all AI
+   calls (extraction + categorization) with automatic **local → OpenAI fallback**.
+   When a local GGUF model is installed, statement content never leaves the
+   machine; OpenAI is contacted only when the local model is missing or fails.
+3. **Description normalization** (`bank_parsers/description_normalizer.py`): strips
+   card prefixes, reference numbers, and glued state codes from raw descriptions
+   before matching — the single biggest categorization-accuracy improvement.
+4. **Categorizer** (`bank_parsers/categorizer.py`): cascade of learned
+   categories → normalized keyword match → AI (with fuzzy category acceptance),
+   so the system no longer discards AI results over trivial formatting differences.
+5. **Learning loop** (`bank_parsers/format_memory.py`): remembers layouts the AI
+   has successfully handled, so recurring unknown-bank statements skip straight
+   to AI on future runs — the system gets cheaper over time.
+
+Backend and threshold configuration lives in `config/ai_settings.json`. To enable
+local AI, download a multimodal GGUF (e.g. Qwen2-VL-7B) into `models/` and set
+`local_supports_vision: true`; to enable OpenAI, place your key in
+`config/openai.txt`. With neither present, the system runs deterministically only
+and AI escalation is skipped gracefully.
+
 ### 📊 Business Tools
 - **Schedule C Generation**: Generate filled IRS Schedule C PDFs with correct field mappings
 - **Category Management**: Configurable business expense categories with learning capabilities

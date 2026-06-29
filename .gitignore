@@ -190,6 +190,24 @@ test_analyzer.py
 schedule_c_data.xlsx
 bank_statement_analyzer.py
 openai.txt
+config/openai.txt
 *.pdf
 *.xlsx
 statistics.txt
+
+# AI models (large, downloadable — do not commit)
+models/
+*.gguf
+*.bin
+
+# Runtime / generated artifacts (contain real financial data or test output)
+ai_errors.txt
+ai_invalid_categories.txt
+verification_results.json
+verification_report.pdf
+test_results.txt
+/tmp/full_test*.log
+
+# macOS
+.DS_Store
+**/.DS_Store

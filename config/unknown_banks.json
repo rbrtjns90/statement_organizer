@@ -1,0 +1,54 @@
+{
+  "Capital One": {
+    "first_seen": "2026-06-29T00:58:40.606960",
+    "count": 8,
+    "samples": [
+      {
+        "path": "Statements/Capital One/Statement_012025_9746.pdf",
+        "confidence": 27.777777777777775,
+        "date": "2026-06-29T00:58:40.606971"
+      },
+      {
+        "path": "Statements/Capital One/Statement_012025_9746.pdf",
+        "confidence": 27.777777777777775,
+        "date": "2026-06-29T01:00:54.727332"
+      },
+      {
+        "path": "Statements/Capital One/Statement_012025_9746.pdf",
+        "confidence": 27.777777777777775,
+        "date": "2026-06-29T01:05:51.432885"
+      },
+      {
+        "path": "Statements/Capital One/Statement_012025_9746.pdf",
+        "confidence": 27.777777777777775,
+        "date": "2026-06-29T01:06:25.906527"
+      },
+      {
+        "path": "Statements/Capital One/Statement_012025_9746.pdf",
+        "confidence": 27.777777777777775,
+        "date": "2026-06-29T01:07:21.246181"
+      }
+    ],
+    "detection_stages": [
+      "layout",
+      "regex"
+    ],
+    "last_seen": "2026-06-29T01:16:24.561888"
+  },
+  "ML Parser": {
+    "first_seen": "2026-06-29T06:40:47.515436",
+    "count": 1,
+    "samples": [
+      {
+        "path": "Statements/dummy_statement2.pdf",
+        "confidence": 27.777777777777775,
+        "date": "2026-06-29T06:40:47.515446"
+      }
+    ],
+    "detection_stages": [
+      "regex",
+      "ai"
+    ],
+    "last_seen": "2026-06-29T06:40:47.515443"
+  }
+}

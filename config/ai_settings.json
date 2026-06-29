@@ -1,4 +1,13 @@
 {
   "initial_setup_complete": true,
-  "preferred_backend": "none"
+  "preferred_backend": "auto",
+  "local_supports_vision": true,
+  "local_n_ctx": 4096,
+  "openai_model": "gpt-4o-mini",
+  "openai_key_file": "config/openai.txt",
+  "openai_key_env": "OPENAI_API_KEY",
+  "extraction_confidence_threshold": 50,
+  "max_tokens_extraction": 2000,
+  "max_tokens_categorization": 400,
+  "categorization_batch_size": 20
 }

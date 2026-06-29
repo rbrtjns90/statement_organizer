@@ -22,8 +22,9 @@ if IS_MACOS:
         from Cocoa import NSURL
         import objc
         VISION_AVAILABLE = True
-    except ImportError:
-        pass
+    except (ImportError, Exception) as e:
+        print(f"⚠️ Vision framework not available: {e}")
+        VISION_AVAILABLE = False
 
 
 def is_scanned_pdf(pdf_path: str) -> bool:
