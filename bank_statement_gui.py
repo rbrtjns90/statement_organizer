@@ -8,7 +8,7 @@ A graphical user interface for the bank statement analyzer using PyQt6.
 import os
 import sys
 import json
-from datetime import datetime
+from datetime import date, datetime
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
     QPushButton, QLabel, QFileDialog, QComboBox, QTableWidget, 
@@ -793,8 +793,16 @@ class BankStatementGUI(QMainWindow):
             # Store the transaction index for later reference
             self.transaction_indices[i] = transaction
             
-            # Date
-            date_item = QTableWidgetItem(transaction['date'].strftime('%Y-%m-%d'))
+            # Date — normalize to YYYY-MM-DD regardless of underlying type
+            # (pipeline emits datetime.date, but stay defensive against strings).
+            raw_date = transaction.get('date')
+            if isinstance(raw_date, (datetime, date)):
+                date_str = raw_date.strftime('%Y-%m-%d')
+            elif raw_date:
+                date_str = str(raw_date)
+            else:
+                date_str = ''
+            date_item = QTableWidgetItem(date_str)
             self.all_transactions_table.setItem(i, 0, date_item)
             
             # Description

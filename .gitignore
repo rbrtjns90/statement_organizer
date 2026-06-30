@@ -207,6 +207,16 @@ verification_report.pdf
 test_results.txt
 /tmp/full_test*.log
 
+# Removed planning/notes docs — keep them out of the repo.
+# These were deleted during the architecture consolidation; list them
+# explicitly (not a blanket *.md) so README.md and AI_TRANSACTION_EXTRACTION.md
+# stay tracked.
+ML_parser.md
+UNKNOWN_BANKS_HANDLING.md
+improvements.md
+possible_upgrades.md
+AI_TRANSACTION_EXTRACTION.md
+
 # macOS
 .DS_Store
 **/.DS_Store

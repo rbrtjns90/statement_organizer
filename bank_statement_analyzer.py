@@ -14,7 +14,7 @@ import argparse
 import json
 import os
 import re
-from datetime import datetime
+from datetime import date, datetime
 
 import pandas as pd
 import pdfplumber
@@ -158,9 +158,16 @@ class BankStatementAnalyzer:
         self.transactions = []
         for pdf_path in pdf_paths:
             self.extract_from_pdf(pdf_path)
-        # Sort all transactions by date where possible
+        # Sort all transactions by date where possible. Dates from the pipeline
+        # are now normalized to datetime.date, but guard against None and any
+        # legacy string that slipped through — None sorts to the end.
+        def _sort_key(txn):
+            d = txn.get("date")
+            if isinstance(d, (datetime, date)):
+                return (0, d)
+            return (1, str(d) if d is not None else "")
         try:
-            self.transactions.sort(key=lambda x: x.get("date") or datetime.min)
+            self.transactions.sort(key=_sort_key)
         except (TypeError, ValueError):
             pass
         return self.transactions

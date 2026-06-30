@@ -34,9 +34,11 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field
+from datetime import date, datetime
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import pdfplumber
+from dateutil import parser as date_parser
 
 from .ai_client import get_ai_client
 from .geometry_extractor import RawRow, extract_from_pdf, is_summary_row
@@ -122,8 +124,38 @@ def _dedupe(transactions: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return out
 
 
+def _normalize_dates(transactions: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Coerce every transaction's ``date`` to a ``datetime.date``.
+
+    The geometry extractor and AI repair paths both emit raw date strings
+    (e.g. ``"07/01/2019"``, ``"10/12/18"``). Downstream consumers — the GUI
+    table (calls ``.strftime``), the multi-PDF sort, and the Excel export —
+    assume a real date/datetime object, so a string crashes them. This is the
+    single chokepoint every finalized transaction set passes through, which is
+    why normalization lives here.
+    """
+    for t in transactions:
+        d = t.get("date")
+        if d is None or isinstance(d, date) and not isinstance(d, datetime):
+            # None stays None; bare date is already correct.
+            continue
+        if isinstance(d, datetime):
+            t["date"] = d.date()
+            continue
+        try:
+            t["date"] = date_parser.parse(str(d)).date()
+        except (ValueError, TypeError, OverflowError):
+            t["date"] = None
+    return transactions
+
+
 def _normalize_amount_sign(transactions: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Expenses positive (downstream convention). Keep credits negative."""
+    """Expenses positive (downstream convention). Keep credits negative.
+
+    Also coerces dates to ``datetime.date`` so downstream consumers (GUI, sort,
+    export) never receive a raw string.
+    """
+    _normalize_dates(transactions)
     for t in transactions:
         amt = t.get("amount")
         if isinstance(amt, (int, float)):
